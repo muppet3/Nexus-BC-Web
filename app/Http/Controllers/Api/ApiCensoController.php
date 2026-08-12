@@ -1,146 +1,319 @@
-import 'dart:convert';
-import 'package:http/http.dart' as http;
-import 'package:shared_preferences/shared_preferences.dart';
+<?php
 
-class ApiService {
-  static Future<String> _getBaseUrl() async {
-    final prefs = await SharedPreferences.getInstance();
-    final ip = prefs.getString('server_ip') ?? '192.168.1.100'; 
-    return 'http://$ip/api';
-  }
+namespace App\Http\Controllers\Api;
 
-  static Future<Map<String, String>> _getHeaders() async {
-    final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('auth_token') ?? '';
-    return {
-      'Content-Type': 'application/json',
-      'Accept': 'application/json',
-      if (token.isNotEmpty) 'Authorization': 'Bearer $token',
-    };
-  }
+use App\Http\Controllers\Controller;
+use Illuminate\Http\Request;
+use App\Models\User;
+use App\Models\Product; 
+use App\Models\HallazgoCenso;
+use App\Models\HistorialAuditoria;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http; 
 
-  // LOGIN
-  static Future<Map<String, dynamic>> login(String username, String pin) async {
-    try {
-      final baseUrl = await _getBaseUrl();
-      final response = await http.post(
-        Uri.parse('$baseUrl/login'),
-        headers: {'Content-Type': 'application/json', 'Accept': 'application/json'},
-        body: jsonEncode({'username': username, 'pin': pin}),
-      );
-      return jsonDecode(response.body);
-    } catch (e) {
-      return {'success': false, 'message': 'Error de conexión: Verifica la IP del servidor.'};
+class ApiCensoController extends Controller
+{
+    // --------------------------------------------------------
+    // 1. LOGIN DE LA APP
+    // --------------------------------------------------------
+    public function login(Request $request)
+    {
+        $request->validate([
+            'username' => 'required',
+            'pin' => 'required'
+        ]);
+
+        $user = User::where('username', $request->username)->first();
+
+        if (!$user || !Hash::check($request->pin, $user->pin)) {
+            return response()->json(['success' => false, 'message' => 'Usuario o PIN incorrectos'], 401);
+        }
+
+        $user->tokens()->delete();
+        $token = $user->createToken('ultra_app')->plainTextToken;
+
+        return response()->json([
+            'success' => true,
+            'token' => $token,
+            'user' => [
+                'id' => $user->id,
+                'name' => $user->name,
+                'username' => $user->username,
+                'role' => $user->role
+            ]
+        ]);
     }
-  }
 
-  // BUSCADOR INTELIGENTE
-  static Future<Map<String, dynamic>> buscarProducto(String query) async {
-    try {
-      final baseUrl = await _getBaseUrl();
-      final headers = await _getHeaders();
-      final response = await http.get(Uri.parse('$baseUrl/buscar?q=$query'), headers: headers);
+    // --------------------------------------------------------
+    // 2. BUSCADOR INTELIGENTE
+    // --------------------------------------------------------
+    public function buscar(Request $request)
+    {
+        $q = $request->get('q');
+        
+        if (strlen($q) < 2) {
+            return response()->json(['success' => true, 'data' => []]);
+        }
 
-      if (response.statusCode == 200) return jsonDecode(response.body);
-      return {'success': false, 'data': []};
-    } catch (e) {
-      return {'success': false, 'message': 'Error al buscar: $e'};
+        $productos = Product::where('codigo_barras', $q)
+            ->orWhere('sku', 'like', "%$q%")
+            ->orWhere('name', 'like', "%$q%")
+            ->get();
+
+        return response()->json([
+            'success' => true,
+            'data' => $productos
+        ]);
     }
-  }
 
-  // GUARDAR CENSO
-  static Future<Map<String, dynamic>> guardarCenso({
-    required int productoId,
-    required int cantidad,
-    required String seccion,
-    required String muebleTipo,
-    required String muebleNumero,
-    required String entrepano,
-    required String marca, 
-    required String codigoBarras, 
-    String? supervisorUsername,
-    String? supervisorPin,
-    int? hallazgoId, 
-  }) async {
-    try {
-      final baseUrl = await _getBaseUrl();
-      final headers = await _getHeaders();
-      
-      final body = {
-        'producto_id': productoId,
-        'cantidad': cantidad,
-        'seccion': seccion,
-        'mueble_tipo': muebleTipo,
-        'mueble_numero': muebleNumero,
-        'entrepano': entrepano,
-        'marca': marca,
-        'codigo_barras': codigoBarras,
-      };
+    // --------------------------------------------------------
+    // 3. GUARDAR CENSO Y DOBLE VALIDACIÓN
+    // --------------------------------------------------------
+    public function guardar(Request $request)
+    {
+        $request->validate([
+            'producto_id' => 'required|exists:products,id',
+            'cantidad' => 'required|numeric|min:1',
+            'seccion' => 'required',
+            'mueble_tipo' => 'required',
+            'mueble_numero' => 'required',
+            'entrepano' => 'required',
+            'marca' => 'required|string',
+            'codigo_barras' => 'required|string',
+        ]);
 
-      if (hallazgoId != null) body['hallazgo_id'] = hallazgoId;
-      if (supervisorUsername != null && supervisorPin != null) {
-        body['supervisor_username'] = supervisorUsername;
-        body['supervisor_pin'] = supervisorPin;
-      }
+        $user = $request->user();
+        $producto = Product::find($request->producto_id);
+        
+        $nuevaUbicacion = "{$request->seccion}-{$request->mueble_tipo} {$request->mueble_numero}-{$request->entrepano}";
+        
+        $ubicacionActual = null;
+        if ($producto->seccion) {
+            $ubicacionActual = "{$producto->seccion}-{$producto->mueble_tipo} {$producto->mueble_numero}-{$producto->entrepano}";
+        }
+        
+        $requiereAutorizacion = false;
+        $mensajeAutorizacion = "";
+        $supervisorId = null;
 
-      final response = await http.post(
-        Uri.parse('$baseUrl/guardar-hallazgo'),
-        headers: headers,
-        body: jsonEncode(body),
-      );
+        if ($ubicacionActual && $ubicacionActual !== $nuevaUbicacion) {
+            if ($user->role === 'par') {
+                $requiereAutorizacion = true;
+                $mensajeAutorizacion = "Estás cambiando una ubicación ya establecida. Un compañero debe autorizar.";
+            }
+        }
 
-      final decodedData = jsonDecode(response.body);
-      if (response.statusCode == 403 && decodedData['needs_auth'] == true) {
-        return decodedData;
-      }
-      return decodedData;
-    } catch (e) {
-      return {'success': false, 'message': 'Error al guardar: $e'};
+        $hallazgoPrevio = null;
+        if ($request->has('hallazgo_id') && $request->hallazgo_id) {
+            $hallazgoPrevio = HallazgoCenso::where('id', $request->hallazgo_id)
+                ->where('user_id', $user->id)
+                ->first();
+        }
+
+        if ($hallazgoPrevio && (int)$hallazgoPrevio->cantidad !== (int)$request->cantidad) {
+            if ($user->role === 'par') {
+                $requiereAutorizacion = true;
+                $mensajeAutorizacion = "Estás modificando una cantidad ya registrada. Un compañero debe autorizar.";
+            }
+        }
+
+        if ($requiereAutorizacion) {
+            if (!$request->supervisor_username || !$request->supervisor_pin) {
+                return response()->json([
+                    'success' => false, 
+                    'needs_auth' => true, 
+                    'message' => $mensajeAutorizacion
+                ], 403);
+            }
+
+            $supervisor = User::where('username', $request->supervisor_username)->first();
+            if (!$supervisor || !Hash::check($request->supervisor_pin, $supervisor->pin)) {
+                return response()->json(['success' => false, 'message' => 'PIN de compañero incorrecto.'], 401);
+            }
+            if ($supervisor->id === $user->id) {
+                return response()->json(['success' => false, 'message' => 'No puedes autorizarte a ti mismo.'], 403);
+            }
+            $supervisorId = $supervisor->id;
+        }
+
+        DB::beginTransaction();
+        try {
+            if ($hallazgoPrevio) {
+                $producto->stock_real -= $hallazgoPrevio->cantidad;
+                $hallazgoPrevio->update([
+                    'cantidad' => $request->cantidad,
+                    'seccion' => $request->seccion,
+                    'mueble_tipo' => $request->mueble_tipo,
+                    'mueble_numero' => $request->mueble_numero,
+                    'entrepano' => $request->entrepano,
+                ]);
+                $accion = "Edición de hallazgo";
+            } else {
+                HallazgoCenso::create([
+                    'product_id' => $producto->id,
+                    'user_id' => $user->id,
+                    'cantidad' => $request->cantidad,
+                    'seccion' => $request->seccion,
+                    'mueble_tipo' => $request->mueble_tipo,
+                    'mueble_numero' => $request->mueble_numero,
+                    'entrepano' => $request->entrepano,
+                ]);
+                $accion = "Nuevo hallazgo registrado";
+            }
+
+            $nuevoStockTotal = $producto->stock_real + $request->cantidad;
+            
+            HistorialAuditoria::create([
+                'product_id' => $producto->id,
+                'user_id' => $user->id,
+                'supervisor_id' => $supervisorId,
+                'accion' => $accion,
+                'detalle_anterior' => "Ubi: " . ($ubicacionActual ?? 'S/U') . " | Stock: " . ($producto->stock_real + ($hallazgoPrevio ? $hallazgoPrevio->cantidad : 0)),
+                'detalle_nuevo' => "Ubi: {$nuevaUbicacion} | Stock final: {$nuevoStockTotal}",
+            ]);
+
+            $producto->update([
+                'stock_real' => $nuevoStockTotal,
+                'seccion' => $request->seccion,
+                'mueble_tipo' => $request->mueble_tipo,
+                'mueble_numero' => $request->mueble_numero,
+                'entrepano' => $request->entrepano,
+                'marca' => $request->marca,
+                'codigo_barras' => $request->codigo_barras,
+            ]);
+
+            DB::commit();
+            return response()->json(['success' => true, 'message' => '¡Inventario actualizado!', 'producto' => $producto]);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json(['success' => false, 'message' => 'Error: ' . $e->getMessage()], 500);
+        }
     }
-  }
 
-  // MI HISTORIAL DEL DÍA
-  static Future<Map<String, dynamic>> miHistorial() async {
-    try {
-      final baseUrl = await _getBaseUrl();
-      final headers = await _getHeaders();
-      final response = await http.get(Uri.parse('$baseUrl/mi-historial'), headers: headers);
-      return jsonDecode(response.body);
-    } catch (e) {
-      return {'success': false, 'message': 'Error al cargar historial: $e'};
+    // --------------------------------------------------------
+    // 4. HISTORIAL DE UN PRODUCTO ESPECÍFICO
+    // --------------------------------------------------------
+    public function historialProducto($id)
+    {
+        $auditorias = HistorialAuditoria::with(['user:id,name', 'supervisor:id,name'])
+            ->where('product_id', $id) 
+            ->orderBy('created_at', 'desc')
+            ->get();
+
+        $hallazgos = HallazgoCenso::with('user:id,name')
+            ->where('product_id', $id) 
+            ->orderBy('updated_at', 'desc')
+            ->get();
+
+        return response()->json([
+            'success' => true,
+            'auditorias' => $auditorias,
+            'hallazgos' => $hallazgos
+        ]);
     }
-  }
 
-  // OBTENER HISTORIAL DE AUDITORÍA
-  static Future<Map<String, dynamic>> historialProducto(int id) async {
-    try {
-      final baseUrl = await _getBaseUrl();
-      final headers = await _getHeaders();
-      final response = await http.get(Uri.parse('$baseUrl/historial-producto/$id'), headers: headers);
+    // --------------------------------------------------------
+    // 5. MI HISTORIAL (Lo que el usuario ha hecho HOY)
+    // --------------------------------------------------------
+    public function miHistorial(Request $request)
+    {
+        $user = $request->user();
+    
+        // 🔥 CORRECCIÓN: Cambiamos 'producto' por 'product' para que coincida con tu modelo
+        $hallazgos = HallazgoCenso::with('product:id,sku,name,unit,grupo,linea,marca,codigo_barras,stock_teorico,stock_real,seccion,mueble_tipo,mueble_numero,entrepano')
+            ->where('user_id', $user->id)
+            ->whereDate('created_at', date('Y-m-d'))
+            ->orderBy('updated_at', 'desc')
+            ->get();
 
-      if (response.statusCode == 200) return jsonDecode(response.body);
-      return {'success': false, 'auditorias': [], 'hallazgos': []};
-    } catch (e) {
-      return {'success': false, 'message': 'Error al cargar auditoría: $e'};
+        return response()->json([
+            'success' => true,
+            'data' => $hallazgos
+        ]);
     }
-  }
 
-  // 🔥 CORRECCIÓN: IMPRESIÓN ZEBRA (Ahora recibe el código a imprimir)
-  static Future<Map<String, dynamic>> imprimirEtiqueta(int productoId, String codigoAImprimir) async {
-    try {
-      final baseUrl = await _getBaseUrl();
-      final headers = await _getHeaders();
-      final response = await http.post(
-        Uri.parse('$baseUrl/imprimir-etiqueta'),
-        headers: headers,
-        body: jsonEncode({
-            'producto_id': productoId,
-            'codigo_impreso': codigoAImprimir
-        }),
-      );
-      return jsonDecode(response.body);
-    } catch (e) {
-      return {'success': false, 'message': 'Error de conexión con la impresora: $e'};
+    // --------------------------------------------------------
+    // 6. IMPRIMIR ZEBRA 2x1 HORIZONTAL (DOBLE ETIQUETA)
+    // --------------------------------------------------------
+    public function imprimirEtiqueta(Request $request)
+    {
+        $request->validate([
+            'producto_id' => 'required|exists:products,id'
+        ]);
+
+        $producto = Product::find($request->producto_id);
+        
+        // 🔥 CORRECCIÓN: Toma primero el código que le manda la App, si no hay, usa el de la BD
+        $codigo = $request->codigo_impreso ?: ($producto->codigo_barras ?: $producto->sku);
+        
+        $descripcion = substr(str_replace(['Ñ','ñ'], ['N','n'], strtoupper($producto->name)), 0, 48);
+        $sku = strtoupper($producto->sku);
+        $unidad = strtoupper($producto->unit);
+
+        // Lógica de ajuste para Code 128
+        $longitud = strlen($codigo);
+
+        if ($longitud <= 14) {
+            $grosor = 2;      
+            $posicionX = 35; 
+        } else {
+            $grosor = 1;      
+            $posicionX = 15; 
+        }
+
+        $zpl = "^XA\n";
+        $zpl .= "~SD30\n"; 
+        $zpl .= "^PW406\n"; 
+        $zpl .= "^LL203\n"; 
+
+        $zpl .= "^FO20,40^FB370,2,0,L^A0N,24,24^FD{$descripcion}^FS\n";
+        $zpl .= "^FO20,105^A0N,24,24^FDUNIDAD: {$unidad}^FS\n";
+        $zpl .= "^FO20,145^A0N,24,24^FDSKU: {$sku}^FS\n";
+        $zpl .= "^XZ\n";
+
+        $zpl .= "^XA\n";
+        $zpl .= "~SD30\n";
+        $zpl .= "^PW406\n"; 
+        $zpl .= "^LL203\n"; 
+        
+        $zpl .= "^FO0,30^FB406,1,0,C^A0N,24,24^FDSKU: {$codigo}^FS\n";
+        $zpl .= "^FO{$posicionX},70^BY{$grosor}^BCN,70,Y,N,N^FD{$codigo}^FS\n";
+        $zpl .= "^XZ\n";
+
+        try {
+            $nombreArchivo = 'etiqueta_' . time() . '.txt';
+            $archivoTemporal = storage_path('app/' . $nombreArchivo);
+            $archivoTemporal = str_replace('/', '\\', $archivoTemporal);
+            
+            file_put_contents($archivoTemporal, $zpl);
+
+            $impresoraCompartida = "\\\\127.0.0.1\\ZEBRA";
+            $impresion = copy($archivoTemporal, $impresoraCompartida);
+
+            if(file_exists($archivoTemporal)){
+                unlink($archivoTemporal);
+            }
+
+            if (!$impresion) {
+                return response()->json([
+                    'success' => false, 
+                    'message' => 'No se pudo copiar el archivo a la impresora compartida.'
+                ], 500);
+            }
+
+            return response()->json([
+                'success' => true, 
+                'message' => 'Etiquetas enviadas a impresión correctamente.',
+                'zpl_generado' => $zpl 
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false, 
+                'message' => 'Error al intentar imprimir: ' . $e->getMessage()
+            ], 500);
+        }
     }
-  }
 }
