@@ -117,6 +117,15 @@
                         
                         <div class="font-bold text-blue-400 group-hover:text-blue-300 transition-colors">{{ $item->supplier_raw }}</div>
                         <div class="text-[11px] text-zinc-500 mt-1 line-clamp-2 leading-relaxed">{{ $item->description_raw }}</div>
+
+                        <div class="mt-2">
+                            <select wire:change="updateItem({{ $item->id }}, 'linked_ms_order_id', $event.target.value)" class="text-[10px] bg-black/40 border border-zinc-800 text-zinc-300 rounded px-1 py-0.5 focus:ring-fuchsia-500 focus:border-fuchsia-500" title="Ligar a una Orden de Compra (Mara)">
+                                <option value="">— Ligar OC Mara —</option>
+                                @foreach($msOrders as $mo)
+                                    <option value="{{ $mo->id }}" @selected($item->linked_ms_order_id == $mo->id)>{{ $mo->po_number }}</option>
+                                @endforeach
+                            </select>
+                        </div>
                     </td>
 
                         <td class="p-0 border-l border-zinc-800 align-top relative min-h-[6rem] {{ ($hasSpecificMs || $isCoveredByGlobal) ? 'bg-emerald-500/10' : 'bg-transparent' }}">

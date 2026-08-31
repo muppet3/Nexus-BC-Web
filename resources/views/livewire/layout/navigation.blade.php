@@ -26,6 +26,18 @@ new class extends Component
                     <x-nav-link :href="route('dashboard')" :active="request()->routeIs('dashboard')" wire:navigate class="text-zinc-300 hover:text-white focus:text-white font-bold tracking-wide">
                         {{ __('Dashboard') }}
                     </x-nav-link>
+
+                    @if (auth()->user()->puedeGestionarCatalogo())
+                        <x-nav-link :href="route('purchase-orders.create')" :active="request()->routeIs('purchase-orders.create')" wire:navigate class="text-zinc-300 hover:text-white focus:text-white font-bold tracking-wide">
+                            {{ __('Nueva OC') }}
+                        </x-nav-link>
+                        <x-nav-link :href="route('products.create')" :active="request()->routeIs('products.create')" wire:navigate class="text-zinc-300 hover:text-white focus:text-white font-bold tracking-wide">
+                            {{ __('Nuevo Producto') }}
+                        </x-nav-link>
+                        <x-nav-link :href="route('products.import')" :active="request()->routeIs('products.import')" wire:navigate class="text-zinc-300 hover:text-white focus:text-white font-bold tracking-wide">
+                            {{ __('Importar Catálogo') }}
+                        </x-nav-link>
+                    @endif
                 </div>
             </div>
 
@@ -75,6 +87,18 @@ new class extends Component
             <x-responsive-nav-link :href="route('dashboard')" :active="request()->routeIs('dashboard')" wire:navigate class="text-zinc-300 hover:text-white hover:bg-zinc-800">
                 {{ __('Dashboard') }}
             </x-responsive-nav-link>
+
+            @if (auth()->user()->puedeGestionarCatalogo())
+                <x-responsive-nav-link :href="route('purchase-orders.create')" :active="request()->routeIs('purchase-orders.create')" wire:navigate class="text-zinc-300 hover:text-white hover:bg-zinc-800">
+                    {{ __('Nueva OC') }}
+                </x-responsive-nav-link>
+                <x-responsive-nav-link :href="route('products.create')" :active="request()->routeIs('products.create')" wire:navigate class="text-zinc-300 hover:text-white hover:bg-zinc-800">
+                    {{ __('Nuevo Producto') }}
+                </x-responsive-nav-link>
+                <x-responsive-nav-link :href="route('products.import')" :active="request()->routeIs('products.import')" wire:navigate class="text-zinc-300 hover:text-white hover:bg-zinc-800">
+                    {{ __('Importar Catálogo') }}
+                </x-responsive-nav-link>
+            @endif
         </div>
 
         <div class="pt-4 pb-1 border-t border-zinc-800">

@@ -1,6 +1,12 @@
 <div class="py-8 bg-zinc-950 min-h-screen text-zinc-100">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        
+
+        @if (session('success'))
+            <div class="mb-6 p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-emerald-300 text-sm font-medium">
+                ✓ {{ session('success') }}
+            </div>
+        @endif
+
         <div class="mb-8">
             <h2 class="text-3xl font-bold text-zinc-100 mb-6">Avisos de llegada ✈️</h2>
             

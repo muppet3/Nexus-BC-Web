@@ -39,4 +39,10 @@ class User extends Authenticatable
     {
         return $this->hasMany(HallazgoCenso::class);
     }
+
+    // master y auxiliar pueden crear OC y dar de alta productos; par no.
+    public function puedeGestionarCatalogo(): bool
+    {
+        return in_array($this->role, ['master', 'auxiliar'], true);
+    }
 }

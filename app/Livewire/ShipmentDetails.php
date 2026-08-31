@@ -7,6 +7,7 @@ use Livewire\WithFileUploads;
 use App\Models\Shipment;
 use App\Models\ShipmentItem;
 use App\Models\Document;
+use App\Models\MsOrder;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
@@ -23,9 +24,11 @@ class ShipmentDetails extends Component
     public $debugMessage = '';
 
     public $showModal = false;
-    public $activeItem = null; 
-    public $newFile; 
+    public $activeItem = null;
+    public $newFile;
     public $existingDocuments = [];
+
+    public $msOrders = [];
 
     protected $listeners = ['refreshItems' => '$refresh'];
 
@@ -37,6 +40,7 @@ class ShipmentDetails extends Component
     public function mount(Shipment $shipment)
     {
         $this->shipment = $shipment;
+        $this->msOrders = MsOrder::orderBy('po_number')->get(['id', 'po_number']);
         $this->loadItems();
     }
 
