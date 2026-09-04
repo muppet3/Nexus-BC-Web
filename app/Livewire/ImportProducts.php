@@ -94,6 +94,8 @@ class ImportProducts extends Component
                     'sku' => $row['sku'],
                     'name' => $row['name'],
                     'unit' => $row['unit'],
+                    'grupo' => $row['grupo'] ?? null,
+                    'linea' => $row['linea'] ?? null,
                     'codigo_barras' => null,
                     'sin_codigo_fisico' => true,
                 ]);

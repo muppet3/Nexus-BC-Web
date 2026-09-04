@@ -52,6 +52,8 @@
                         <option value="pieza">pieza</option>
                         <option value="kit">kit</option>
                         <option value="metro">metro</option>
+                        <option value="pie">pie</option>
+                        <option value="centímetro">centímetro</option>
                         <option value="caja">caja</option>
                         <option value="paquete">paquete</option>
                         <option value="kilogramo">kilogramo</option>

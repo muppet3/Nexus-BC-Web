@@ -11,8 +11,12 @@ class UnitNormalizer
 {
     private const MAP = [
         'pieza' => 'pieza', 'piezas' => 'pieza', 'pza' => 'pieza', 'pzas' => 'pieza', 'pz' => 'pieza',
+        // CUB y R: abreviaturas sin significado claro, se homologan a pieza por indicación directa.
+        'cub' => 'pieza', 'r' => 'pieza',
         'kit' => 'kit', 'kits' => 'kit',
-        'metro' => 'metro', 'metros' => 'metro', 'mt' => 'metro', 'mts' => 'metro',
+        'metro' => 'metro', 'metros' => 'metro', 'mt' => 'metro', 'mts' => 'metro', 'mtr' => 'metro',
+        'pie' => 'pie', 'pies' => 'pie',
+        'cm' => 'centímetro', 'centimetro' => 'centímetro', 'centimetros' => 'centímetro', 'centímetro' => 'centímetro', 'centímetros' => 'centímetro',
         'caja' => 'caja', 'cajas' => 'caja',
         'paquete' => 'paquete', 'paquetes' => 'paquete', 'paq' => 'paquete',
         'kilogramo' => 'kilogramo', 'kilogramos' => 'kilogramo', 'kg' => 'kilogramo',
@@ -20,7 +24,7 @@ class UnitNormalizer
     ];
 
     // Unidades que en realidad son servicios (no artículos almacenables): se excluyen del import.
-    private const EXCLUDED = ['servicio', 'servicios'];
+    private const EXCLUDED = ['servicio', 'servicios', 'ser'];
 
     public static function isExcluded(?string $raw): bool
     {

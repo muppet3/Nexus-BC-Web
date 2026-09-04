@@ -91,6 +91,8 @@
                                 <th class="px-2 py-3 text-left">SKU</th>
                                 <th class="px-2 py-3 text-left">Nombre</th>
                                 <th class="px-2 py-3 text-left">Unidad</th>
+                                <th class="px-2 py-3 text-left">Grupo</th>
+                                <th class="px-2 py-3 text-left">Línea</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-zinc-800 bg-[#141414]">
@@ -102,6 +104,8 @@
                                     <td class="px-2 py-2 text-xs font-bold text-fuchsia-400">{{ $row['sku'] }}</td>
                                     <td class="px-2 py-2 text-xs text-zinc-300">{{ $row['name'] }}</td>
                                     <td class="px-2 py-2 text-xs text-zinc-500">{{ $row['unit'] }}</td>
+                                    <td class="px-2 py-2 text-xs text-zinc-500">{{ $row['grupo'] ?? '—' }}</td>
+                                    <td class="px-2 py-2 text-xs text-zinc-500">{{ $row['linea'] ?? '—' }}</td>
                                 </tr>
                             @endforeach
                         </tbody>
