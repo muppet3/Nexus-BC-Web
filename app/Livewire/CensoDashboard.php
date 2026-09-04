@@ -42,6 +42,10 @@ class CensoDashboard extends Component
     public $showModalHistorialProducto = false;
     public $historialProductoData = [];
 
+    // Administración de registros (solo master): ver y borrar hallazgos de cualquier usuario.
+    public $showModalAdminRegistros = false;
+    public $adminRegistrosData = [];
+
     // Autorización
     public $authMotivo = '';
     public $supervisorUsername = '';
@@ -117,6 +121,70 @@ class CensoDashboard extends Component
                 ->orderBy('created_at', 'desc')
                 ->get();
             $this->showModalHistorialProducto = true;
+        }
+    }
+
+    // 🔥 4. ADMINISTRACIÓN DE REGISTROS (solo master): ver de todos los usuarios y borrar
+    public function abrirAdminRegistros()
+    {
+        if (auth()->user()?->role !== 'master') {
+            return;
+        }
+
+        $this->cargarAdminRegistros();
+        $this->showModalAdminRegistros = true;
+    }
+
+    private function cargarAdminRegistros()
+    {
+        $this->adminRegistrosData = HallazgoCenso::with(['product', 'user'])
+            ->where('created_at', '>=', now()->subDays(7))
+            ->orderBy('updated_at', 'desc')
+            ->get();
+    }
+
+    public function cerrarAdminRegistros()
+    {
+        $this->showModalAdminRegistros = false;
+    }
+
+    public function borrarHallazgo($id)
+    {
+        $user = auth()->user();
+        if (!$user || $user->role !== 'master') {
+            session()->flash('error', 'No tienes permiso para borrar registros.');
+            return;
+        }
+
+        $hallazgo = HallazgoCenso::with('product')->find($id);
+        if (!$hallazgo || !$hallazgo->product) {
+            return;
+        }
+
+        DB::beginTransaction();
+        try {
+            $producto = $hallazgo->product;
+            $stockAnterior = $producto->stock_real;
+            $producto->stock_real = max(0, $producto->stock_real - $hallazgo->cantidad);
+            $producto->save();
+
+            HistorialAuditoria::create([
+                'product_id' => $producto->id,
+                'user_id' => $user->id,
+                'supervisor_id' => null,
+                'accion' => 'Registro eliminado por administrador',
+                'detalle_anterior' => "Cantidad: {$hallazgo->cantidad} | Stock: {$stockAnterior}",
+                'detalle_nuevo' => "Stock final: {$producto->stock_real}",
+            ]);
+
+            $hallazgo->delete();
+
+            DB::commit();
+            $this->cargarAdminRegistros();
+            session()->flash('success', 'Registro eliminado y stock corregido.');
+        } catch (\Exception $e) {
+            DB::rollBack();
+            session()->flash('error', 'Error al borrar: ' . $e->getMessage());
         }
     }
 

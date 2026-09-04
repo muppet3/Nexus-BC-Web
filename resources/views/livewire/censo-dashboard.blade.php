@@ -37,6 +37,11 @@
                 <x-primary-button wire:click="abrirMiHistorial" class="bg-fuchsia-600 hover:bg-fuchsia-500 w-full md:w-auto justify-center">
                     Mi Historial
                 </x-primary-button>
+                @if (auth()->user()->role === 'master')
+                    <x-primary-button wire:click="abrirAdminRegistros" class="bg-red-700 hover:bg-red-600 w-full md:w-auto justify-center">
+                        Administrar Registros
+                    </x-primary-button>
+                @endif
             </div>
         </div>
 
@@ -208,6 +213,66 @@
             <div class="mt-6 flex justify-end gap-3">
                 <x-secondary-button wire:click="$set('showModalAuth', false)" class="bg-gray-800 text-gray-300 border-gray-600 hover:bg-gray-700">Cancelar</x-secondary-button>
                 <x-primary-button wire:click="ejecutarGuardado(true)" class="bg-fuchsia-600 hover:bg-fuchsia-500">Autorizar y Guardar</x-primary-button>
+            </div>
+        </div>
+    </x-modal>
+
+    <!-- Mi Historial: mis registros de hoy, click para editar -->
+    <x-modal name="modal-mi-historial" :show="$showModalMiHistorial" maxWidth="2xl">
+        <div class="p-6 bg-gray-900 text-white">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg font-bold">Mis Registros de Hoy</h3>
+                <button wire:click="$set('showModalMiHistorial', false)" class="text-gray-400 hover:text-white">✕</button>
+            </div>
+
+            <div class="max-h-[28rem] overflow-y-auto divide-y divide-gray-700">
+                @forelse ($miHistorialData as $h)
+                    @php $esEdicion = $h->created_at != $h->updated_at; @endphp
+                    <button
+                        wire:click="editarMiHistorial({{ $h->id }})"
+                        wire:key="mi-hist-{{ $h->id }}"
+                        class="w-full text-left py-3 flex items-center justify-between gap-3 hover:bg-gray-800/60 px-2 -mx-2 rounded transition-colors">
+                        <div class="min-w-0">
+                            <div class="text-sm font-bold text-white truncate">{{ $h->product->name ?? 'Producto eliminado' }}</div>
+                            <div class="text-xs text-gray-400">SKU: {{ $h->product->sku ?? 'N/A' }} · {{ $h->cantidad }} Pzas en {{ $h->seccion }}-{{ $h->mueble_tipo }} {{ $h->mueble_numero }}-E{{ $h->entrepano }}</div>
+                            <span class="text-[10px] font-bold {{ $esEdicion ? 'text-cyan-400' : 'text-emerald-400' }}">{{ $esEdicion ? '📝 EDICIÓN' : '🆕 NUEVO' }}</span>
+                        </div>
+                        <span class="shrink-0 text-xs text-gray-500">{{ $h->updated_at->format('d/m H:i') }}</span>
+                    </button>
+                @empty
+                    <p class="text-sm text-gray-500 italic py-4 text-center">Aún no tienes registros hoy.</p>
+                @endforelse
+            </div>
+        </div>
+    </x-modal>
+
+    <!-- Administración de Registros (solo master): ver y borrar hallazgos de cualquier usuario -->
+    <x-modal name="modal-admin-registros" :show="$showModalAdminRegistros" maxWidth="3xl">
+        <div class="p-6 bg-gray-900 text-white">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg font-bold">Administrar Registros (últimos 7 días)</h3>
+                <button wire:click="cerrarAdminRegistros" class="text-gray-400 hover:text-white">✕</button>
+            </div>
+            <p class="text-xs text-gray-500 mb-4">Borrar un registro también corrige el stock real del producto (resta la cantidad) y queda anotado en el historial de auditoría.</p>
+
+            <div class="max-h-[28rem] overflow-y-auto divide-y divide-gray-700">
+                @forelse ($adminRegistrosData as $h)
+                    <div wire:key="admin-reg-{{ $h->id }}" class="py-3 flex items-center justify-between gap-3">
+                        <div class="min-w-0">
+                            <div class="text-sm font-bold text-white truncate">{{ $h->product->name ?? 'Producto eliminado' }}</div>
+                            <div class="text-xs text-gray-400">SKU: {{ $h->product->sku ?? 'N/A' }} · {{ $h->cantidad }} Pzas en {{ $h->seccion }}-{{ $h->mueble_tipo }} {{ $h->mueble_numero }}-E{{ $h->entrepano }}</div>
+                            <div class="text-xs text-gray-500">Por: {{ $h->user->name ?? 'N/A' }} · {{ $h->updated_at->format('d/m H:i') }}</div>
+                        </div>
+                        <button
+                            wire:click="borrarHallazgo({{ $h->id }})"
+                            wire:confirm="¿Borrar este registro? Esto también corrige el stock real del producto."
+                            class="shrink-0 text-xs font-bold px-3 py-1.5 bg-red-500/10 border border-red-500/30 text-red-400 rounded-md hover:bg-red-500/20 transition-colors">
+                            Borrar
+                        </button>
+                    </div>
+                @empty
+                    <p class="text-sm text-gray-500 italic py-4 text-center">No hay registros en los últimos 7 días.</p>
+                @endforelse
             </div>
         </div>
     </x-modal>

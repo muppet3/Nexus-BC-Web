@@ -235,13 +235,14 @@ class ApiCensoController extends Controller
     }
 
     // --------------------------------------------------------
-    // 6. IMPRIMIR ZEBRA — con código de barras (2 etiquetas) o solo texto (1 etiqueta)
+    // 6. IMPRIMIR ZEBRA — 'barras' (descripción + código, 2 etiquetas),
+    //    'texto' (solo descripción) o 'solo_codigo' (solo código de barras).
     // --------------------------------------------------------
     public function imprimirEtiqueta(Request $request)
     {
         $request->validate([
             'producto_id' => 'required|exists:products,id',
-            'tipo' => 'nullable|in:barras,texto',
+            'tipo' => 'nullable|in:barras,texto,solo_codigo',
             'cantidad' => 'nullable|integer|min:1|max:50',
         ]);
 
@@ -256,19 +257,24 @@ class ApiCensoController extends Controller
         $sku = strtoupper($producto->sku);
         $unidad = strtoupper($producto->unit);
 
+        $zpl = '';
+
         // Etiqueta de texto: descripción, unidad y SKU, sin código de barras.
-        $zpl = "^XA\n";
-        $zpl .= "~SD30\n";
-        $zpl .= "^PW406\n";
-        $zpl .= "^LL203\n";
+        if (in_array($tipo, ['barras', 'texto'], true)) {
+            $zpl .= "^XA\n";
+            $zpl .= "~SD30\n";
+            $zpl .= "^PW406\n";
+            $zpl .= "^LL203\n";
 
-        $zpl .= "^FO20,40^FB370,2,0,L^A0N,24,24^FD{$descripcion}^FS\n";
-        $zpl .= "^FO20,105^A0N,24,24^FDUNIDAD: {$unidad}^FS\n";
-        $zpl .= "^FO20,145^A0N,24,24^FDSKU: {$sku}^FS\n";
-        $zpl .= "^PQ{$cantidad}\n";
-        $zpl .= "^XZ\n";
+            $zpl .= "^FO20,40^FB370,2,0,L^A0N,24,24^FD{$descripcion}^FS\n";
+            $zpl .= "^FO20,105^A0N,24,24^FDUNIDAD: {$unidad}^FS\n";
+            $zpl .= "^FO20,145^A0N,24,24^FDSKU: {$sku}^FS\n";
+            $zpl .= "^PQ{$cantidad}\n";
+            $zpl .= "^XZ\n";
+        }
 
-        if ($tipo === 'barras') {
+        // Etiqueta de código de barras.
+        if (in_array($tipo, ['barras', 'solo_codigo'], true)) {
             // Lógica de ajuste para Code 128
             $longitud = strlen($codigo);
 
