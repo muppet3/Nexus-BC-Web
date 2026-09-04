@@ -235,52 +235,61 @@ class ApiCensoController extends Controller
     }
 
     // --------------------------------------------------------
-    // 6. IMPRIMIR ZEBRA 2x1 HORIZONTAL (DOBLE ETIQUETA)
+    // 6. IMPRIMIR ZEBRA — con código de barras (2 etiquetas) o solo texto (1 etiqueta)
     // --------------------------------------------------------
     public function imprimirEtiqueta(Request $request)
     {
         $request->validate([
-            'producto_id' => 'required|exists:products,id'
+            'producto_id' => 'required|exists:products,id',
+            'tipo' => 'nullable|in:barras,texto',
+            'cantidad' => 'nullable|integer|min:1|max:50',
         ]);
 
         $producto = Product::find($request->producto_id);
-        
+        $tipo = $request->tipo ?: 'barras';
+        $cantidad = $request->cantidad ?: 1;
+
         // 🔥 CORRECCIÓN: Toma primero el código que le manda la App, si no hay, usa el de la BD
         $codigo = $request->codigo_impreso ?: ($producto->codigo_barras ?: $producto->sku);
-        
+
         $descripcion = substr(str_replace(['Ñ','ñ'], ['N','n'], strtoupper($producto->name)), 0, 48);
         $sku = strtoupper($producto->sku);
         $unidad = strtoupper($producto->unit);
 
-        // Lógica de ajuste para Code 128
-        $longitud = strlen($codigo);
-
-        if ($longitud <= 14) {
-            $grosor = 2;      
-            $posicionX = 35; 
-        } else {
-            $grosor = 1;      
-            $posicionX = 15; 
-        }
-
+        // Etiqueta de texto: descripción, unidad y SKU, sin código de barras.
         $zpl = "^XA\n";
-        $zpl .= "~SD30\n"; 
-        $zpl .= "^PW406\n"; 
-        $zpl .= "^LL203\n"; 
+        $zpl .= "~SD30\n";
+        $zpl .= "^PW406\n";
+        $zpl .= "^LL203\n";
 
         $zpl .= "^FO20,40^FB370,2,0,L^A0N,24,24^FD{$descripcion}^FS\n";
         $zpl .= "^FO20,105^A0N,24,24^FDUNIDAD: {$unidad}^FS\n";
         $zpl .= "^FO20,145^A0N,24,24^FDSKU: {$sku}^FS\n";
+        $zpl .= "^PQ{$cantidad}\n";
         $zpl .= "^XZ\n";
 
-        $zpl .= "^XA\n";
-        $zpl .= "~SD30\n";
-        $zpl .= "^PW406\n"; 
-        $zpl .= "^LL203\n"; 
-        
-        $zpl .= "^FO0,30^FB406,1,0,C^A0N,24,24^FDSKU: {$codigo}^FS\n";
-        $zpl .= "^FO{$posicionX},70^BY{$grosor}^BCN,70,Y,N,N^FD{$codigo}^FS\n";
-        $zpl .= "^XZ\n";
+        if ($tipo === 'barras') {
+            // Lógica de ajuste para Code 128
+            $longitud = strlen($codigo);
+
+            if ($longitud <= 14) {
+                $grosor = 2;
+                $posicionX = 35;
+            } else {
+                $grosor = 1;
+                $posicionX = 15;
+            }
+
+            $zpl .= "^XA\n";
+            $zpl .= "~SD30\n";
+            $zpl .= "^PW406\n";
+            $zpl .= "^LL203\n";
+
+            $zpl .= "^FO0,30^FB406,1,0,C^A0N,24,24^FDSKU: {$codigo}^FS\n";
+            $zpl .= "^FO{$posicionX},70^BY{$grosor}^BCN,70,Y,N,N^FD{$codigo}^FS\n";
+            $zpl .= "^PQ{$cantidad}\n";
+            $zpl .= "^XZ\n";
+        }
 
         try {
             $nombreArchivo = 'etiqueta_' . time() . '.txt';
