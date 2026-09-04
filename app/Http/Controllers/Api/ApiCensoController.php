@@ -253,7 +253,15 @@ class ApiCensoController extends Controller
         // 🔥 CORRECCIÓN: Toma primero el código que le manda la App, si no hay, usa el de la BD
         $codigo = $request->codigo_impreso ?: ($producto->codigo_barras ?: $producto->sku);
 
-        $descripcion = substr(str_replace(['Ñ','ñ'], ['N','n'], strtoupper($producto->name)), 0, 48);
+        // La impresora Zebra no entiende UTF-8 multibyte (usa su propia tabla de un solo byte),
+        // así que hay que bajar acentos y comillas/guiones "tipográficos" a su equivalente ASCII
+        // antes de mandarlos, o salen como basura (ej. ” se imprime como "ÔÇØ").
+        $descripcion = str_replace(
+            ['Ñ', 'ñ', '”', '“', '’', '‘', '–', '—'],
+            ['N', 'n', '"', '"', "'", "'", '-', '-'],
+            strtoupper($producto->name)
+        );
+        $descripcion = substr($descripcion, 0, 48);
         $sku = strtoupper($producto->sku);
         $unidad = strtoupper($producto->unit);
 
