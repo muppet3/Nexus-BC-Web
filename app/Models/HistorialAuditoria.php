@@ -10,16 +10,24 @@ class HistorialAuditoria extends Model
 
     protected $fillable = [
         'product_id', // <-- Cambiado a product_id
-        'user_id', 
+        'hallazgo_id',
+        'user_id',
         'supervisor_id',
-        'accion', 
-        'detalle_anterior', 
+        'accion',
+        'detalle_anterior',
         'detalle_nuevo'
     ];
 
     public function product() // <-- Cambiado a product
     {
         return $this->belongsTo(Product::class, 'product_id');
+    }
+
+    // El hallazgo concreto que originó este renglón de auditoría (puede ser null en
+    // registros viejos, o si el hallazgo ya se borró).
+    public function hallazgo()
+    {
+        return $this->belongsTo(HallazgoCenso::class, 'hallazgo_id');
     }
 
     public function user() // Quien ejecutó

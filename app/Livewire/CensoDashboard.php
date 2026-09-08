@@ -279,11 +279,22 @@ class CensoDashboard extends Component
             }
         }
 
-        // Validar Edición
+        // Validar Edición — solo master puede editar el hallazgo de otro usuario.
         $hallazgoPrevio = null;
         if ($this->hallazgoEditandoId) {
-            $hallazgoPrevio = HallazgoCenso::find($this->hallazgoEditandoId);
-            if ($hallazgoPrevio && (int)$hallazgoPrevio->cantidad !== (int)$this->cantidad) {
+            $query = HallazgoCenso::where('id', $this->hallazgoEditandoId);
+            if ($user->role !== 'master') {
+                $query->where('user_id', $user->id);
+            }
+            $hallazgoPrevio = $query->first();
+
+            if (!$hallazgoPrevio) {
+                session()->flash('error', 'No tienes permiso para editar este registro.');
+                $this->cerrarPanel();
+                return;
+            }
+
+            if ((int)$hallazgoPrevio->cantidad !== (int)$this->cantidad) {
                 if ($user->role === 'par') {
                     $requiereAutorizacion = true;
                     $this->authMotivo = "Modificando una cantidad histórica.";
@@ -323,8 +334,9 @@ class CensoDashboard extends Component
                     'entrepano' => $this->entrepano,
                 ]);
                 $accion = "Edición de hallazgo";
+                $hallazgoId = $hallazgoPrevio->id;
             } else {
-                HallazgoCenso::create([
+                $nuevoHallazgo = HallazgoCenso::create([
                     'product_id' => $this->productoActivo->id, // <-- product_id
                     'user_id' => $user->id,
                     'cantidad' => $this->cantidad,
@@ -334,12 +346,14 @@ class CensoDashboard extends Component
                     'entrepano' => $this->entrepano,
                 ]);
                 $accion = "Nuevo hallazgo registrado";
+                $hallazgoId = $nuevoHallazgo->id;
             }
 
             $nuevoStockTotal = $this->productoActivo->stock_real + $this->cantidad;
-            
+
             HistorialAuditoria::create([
                 'product_id' => $this->productoActivo->id, // <-- product_id
+                'hallazgo_id' => $hallazgoId,
                 'user_id' => $user->id,
                 'supervisor_id' => $supervisorId,
                 'accion' => $accion,

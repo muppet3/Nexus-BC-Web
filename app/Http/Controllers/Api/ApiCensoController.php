@@ -104,11 +104,20 @@ class ApiCensoController extends Controller
             }
         }
 
+        // 🔒 Solo master puede editar el hallazgo de otro usuario. Antes, si no era tuyo,
+        // la búsqueda regresaba null y el código de abajo creaba un hallazgo NUEVO duplicado
+        // en silencio en vez de avisar que no tenías permiso — ya no.
         $hallazgoPrevio = null;
-        if ($request->has('hallazgo_id') && $request->hallazgo_id) {
-            $hallazgoPrevio = HallazgoCenso::where('id', $request->hallazgo_id)
-                ->where('user_id', $user->id)
-                ->first();
+        if ($request->filled('hallazgo_id')) {
+            $query = HallazgoCenso::where('id', $request->hallazgo_id);
+            if ($user->role !== 'master') {
+                $query->where('user_id', $user->id);
+            }
+            $hallazgoPrevio = $query->first();
+
+            if (!$hallazgoPrevio) {
+                return response()->json(['success' => false, 'message' => 'No tienes permiso para editar este registro.'], 403);
+            }
         }
 
         if ($hallazgoPrevio && (int)$hallazgoPrevio->cantidad !== (int)$request->cantidad) {
@@ -149,8 +158,9 @@ class ApiCensoController extends Controller
                     'entrepano' => $request->entrepano,
                 ]);
                 $accion = "Edición de hallazgo";
+                $hallazgoId = $hallazgoPrevio->id;
             } else {
-                HallazgoCenso::create([
+                $nuevoHallazgo = HallazgoCenso::create([
                     'product_id' => $producto->id,
                     'user_id' => $user->id,
                     'cantidad' => $request->cantidad,
@@ -160,12 +170,14 @@ class ApiCensoController extends Controller
                     'entrepano' => $request->entrepano,
                 ]);
                 $accion = "Nuevo hallazgo registrado";
+                $hallazgoId = $nuevoHallazgo->id;
             }
 
             $nuevoStockTotal = $producto->stock_real + $request->cantidad;
-            
+
             HistorialAuditoria::create([
                 'product_id' => $producto->id,
+                'hallazgo_id' => $hallazgoId,
                 'user_id' => $user->id,
                 'supervisor_id' => $supervisorId,
                 'accion' => $accion,
@@ -197,8 +209,12 @@ class ApiCensoController extends Controller
     // --------------------------------------------------------
     public function historialProducto($id)
     {
-        $auditorias = HistorialAuditoria::with(['user:id,name', 'supervisor:id,name'])
-            ->where('product_id', $id) 
+        $auditorias = HistorialAuditoria::with([
+                'user:id,name',
+                'supervisor:id,name',
+                'hallazgo:id,user_id,cantidad,seccion,mueble_tipo,mueble_numero,entrepano',
+            ])
+            ->where('product_id', $id)
             ->orderBy('created_at', 'desc')
             ->get();
 
@@ -334,9 +350,59 @@ class ApiCensoController extends Controller
 
         } catch (\Exception $e) {
             return response()->json([
-                'success' => false, 
+                'success' => false,
                 'message' => 'Error al intentar imprimir: ' . $e->getMessage()
             ], 500);
+        }
+    }
+
+    // --------------------------------------------------------
+    // 7. BORRAR HALLAZGO (solo master) — corrige el stock y deja rastro en auditoría
+    // --------------------------------------------------------
+    public function borrarHallazgo(Request $request)
+    {
+        $request->validate([
+            'hallazgo_id' => 'required|exists:hallazgos_censo,id',
+        ]);
+
+        $user = $request->user();
+        if ($user->role !== 'master') {
+            return response()->json(['success' => false, 'message' => 'No tienes permiso para borrar registros.'], 403);
+        }
+
+        $hallazgo = HallazgoCenso::with('product')->find($request->hallazgo_id);
+        if (!$hallazgo || !$hallazgo->product) {
+            return response()->json(['success' => false, 'message' => 'Registro no encontrado.'], 404);
+        }
+
+        DB::beginTransaction();
+        try {
+            $producto = $hallazgo->product;
+            $stockAnterior = $producto->stock_real;
+            $producto->stock_real = max(0, $producto->stock_real - $hallazgo->cantidad);
+            $producto->save();
+
+            HistorialAuditoria::create([
+                'product_id' => $producto->id,
+                'hallazgo_id' => null, // el hallazgo está a punto de borrarse, no tiene caso apuntar a un id que dejará de existir
+                'user_id' => $user->id,
+                'supervisor_id' => null,
+                'accion' => 'Registro eliminado por administrador',
+                'detalle_anterior' => "Cantidad: {$hallazgo->cantidad} | Stock: {$stockAnterior}",
+                'detalle_nuevo' => "Stock final: {$producto->stock_real}",
+            ]);
+
+            $hallazgo->delete();
+
+            DB::commit();
+            return response()->json([
+                'success' => true,
+                'message' => 'Registro eliminado y stock corregido.',
+                'producto' => $producto,
+            ]);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json(['success' => false, 'message' => 'Error al borrar: ' . $e->getMessage()], 500);
         }
     }
 }

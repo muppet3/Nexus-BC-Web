@@ -18,7 +18,8 @@ Route::middleware('auth:sanctum')->group(function () {
     // Operaciones principales del escáner
     Route::get('/buscar', [ApiCensoController::class, 'buscar']);
     Route::post('/guardar-hallazgo', [ApiCensoController::class, 'guardar']);
-    
+    Route::post('/borrar-hallazgo', [ApiCensoController::class, 'borrarHallazgo']);
+
     // Historiales de auditoría
     Route::get('/historial-producto/{id}', [ApiCensoController::class, 'historialProducto']);
     Route::get('/mi-historial', [ApiCensoController::class, 'miHistorial']);
