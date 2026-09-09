@@ -207,7 +207,7 @@ class ApiCensoController extends Controller
     // --------------------------------------------------------
     // 4. HISTORIAL DE UN PRODUCTO ESPECÍFICO
     // --------------------------------------------------------
-    public function historialProducto($id)
+    public function historialProducto(Request $request, $id)
     {
         $auditorias = HistorialAuditoria::with([
                 'user:id,name',
@@ -217,6 +217,22 @@ class ApiCensoController extends Controller
             ->where('product_id', $id)
             ->orderBy('created_at', 'desc')
             ->get();
+
+        // Para renglones viejos (de antes de que existiera hallazgo_id) master puede seguir
+        // editando/borrando: se resuelve la liga al vuelo, sin guardar nada, y solo si hay un
+        // único hallazgo candidato (mismo producto+usuario) — si es ambiguo, se deja igual que
+        // a cualquier otro usuario, sin ícono, en vez de arriesgarse a apuntar al equivocado.
+        if ($request->user()->role === 'master') {
+            $auditorias->whereNull('hallazgo_id')->each(function ($aud) {
+                $candidatos = HallazgoCenso::where('product_id', $aud->product_id)
+                    ->where('user_id', $aud->user_id)
+                    ->get(['id', 'user_id', 'cantidad', 'seccion', 'mueble_tipo', 'mueble_numero', 'entrepano']);
+
+                if ($candidatos->count() === 1) {
+                    $aud->setRelation('hallazgo', $candidatos->first());
+                }
+            });
+        }
 
         $hallazgos = HallazgoCenso::with('user:id,name')
             ->where('product_id', $id) 
