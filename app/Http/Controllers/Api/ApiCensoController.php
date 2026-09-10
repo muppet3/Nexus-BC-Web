@@ -301,38 +301,45 @@ class ApiCensoController extends Controller
 
         // Etiqueta de texto: descripción, unidad y SKU, sin código de barras.
         if (in_array($tipo, ['barras', 'texto'], true)) {
+            // Etiqueta de 2 1/4" x 1" @ 203 dpi -> 457 x 203 dots.
             $zpl .= "^XA\n";
-            $zpl .= "~SD30\n";
-            $zpl .= "^PW406\n";
+            $zpl .= "~SD20\n";
+            $zpl .= "^PW457\n";
             $zpl .= "^LL203\n";
 
-            $zpl .= "^FO20,40^FB370,2,0,L^A0N,24,24^FD{$descripcion}^FS\n";
-            $zpl .= "^FO20,105^A0N,24,24^FDUNIDAD: {$unidad}^FS\n";
-            $zpl .= "^FO20,145^A0N,24,24^FDSKU: {$sku}^FS\n";
+            $zpl .= "^FO20,35^FB420,2,0,L^A0N,26,26^FD{$descripcion}^FS\n";
+            $zpl .= "^FO20,110^A0N,26,26^FDUNIDAD: {$unidad}^FS\n";
+            $zpl .= "^FO20,150^A0N,26,26^FDSKU: {$sku}^FS\n";
             $zpl .= "^PQ{$cantidad}\n";
             $zpl .= "^XZ\n";
         }
 
         // Etiqueta de código de barras.
         if (in_array($tipo, ['barras', 'solo_codigo'], true)) {
-            // Lógica de ajuste para Code 128
+            // Lógica de ajuste para Code 128 sobre etiqueta de 2 1/4" (457 dots de ancho).
+            // A grosor 2 caben ~15 caracteres antes de desbordar el ancho; los más largos
+            // bajan a grosor 1 (barras más finas) y así entran hasta ~36 caracteres.
             $longitud = strlen($codigo);
 
-            if ($longitud <= 14) {
+            if ($longitud <= 15) {
                 $grosor = 2;
-                $posicionX = 35;
+                $posicionX = 40;
+                $fuenteTexto = 30;
             } else {
                 $grosor = 1;
-                $posicionX = 15;
+                $posicionX = 20;
+                $fuenteTexto = 22;
             }
 
+            // Etiqueta de 2 1/4" x 1" @ 203 dpi -> 457 x 203 dots.
             $zpl .= "^XA\n";
-            $zpl .= "~SD30\n";
-            $zpl .= "^PW406\n";
+            $zpl .= "~SD20\n";
+            $zpl .= "^PW457\n";
             $zpl .= "^LL203\n";
 
-            $zpl .= "^FO0,30^FB406,1,0,C^A0N,24,24^FDSKU: {$codigo}^FS\n";
-            $zpl .= "^FO{$posicionX},70^BY{$grosor}^BCN,70,Y,N,N^FD{$codigo}^FS\n";
+            // Franja superior: el texto arranca en y=32, no pegado al borde.
+            $zpl .= "^FO0,32^FB457,1,0,C^A0N,{$fuenteTexto},{$fuenteTexto}^FDSKU: {$codigo}^FS\n";
+            $zpl .= "^FO{$posicionX},68^BY{$grosor}^BCN,95,Y,N,N^FD{$codigo}^FS\n";
             $zpl .= "^PQ{$cantidad}\n";
             $zpl .= "^XZ\n";
         }
