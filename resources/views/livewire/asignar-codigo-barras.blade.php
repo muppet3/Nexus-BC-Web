@@ -38,7 +38,7 @@
                     @if ($search !== '')
                         <button
                             type="button"
-                            @click="$wire.limpiarBusqueda().then(() => $nextTick(() => $refs.searchInput.focus()))"
+                            @click="$refs.searchInput.value = ''; $refs.searchInput.dispatchEvent(new Event('input')); $refs.searchInput.focus()"
                             title="Limpiar"
                             class="absolute inset-y-0 right-0 px-4 flex items-center text-zinc-500 hover:text-white transition-colors">
                             ✕
@@ -103,7 +103,7 @@
                     <input
                         type="text"
                         x-ref="codigoInput"
-                        wire:model="codigoNuevo"
+                        wire:model.live.debounce.300ms="codigoNuevo"
                         wire:keydown.enter="guardarCodigo"
                         autofocus
                         placeholder="Escanea aquí..."
@@ -112,7 +112,7 @@
                     @if ($codigoNuevo !== '')
                         <button
                             type="button"
-                            @click="$wire.limpiarCodigoNuevo().then(() => $nextTick(() => $refs.codigoInput.focus()))"
+                            @click="$refs.codigoInput.value = ''; $refs.codigoInput.dispatchEvent(new Event('input')); $refs.codigoInput.focus()"
                             title="Limpiar"
                             class="absolute inset-y-0 right-0 px-4 flex items-center text-zinc-500 hover:text-white transition-colors">
                             ✕
