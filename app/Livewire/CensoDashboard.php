@@ -463,6 +463,6 @@ class CensoDashboard extends Component
             'totalTeorico' => $totalTeorico,
             'totalReal' => $totalReal,
             'diferencia' => $diferencia
-        ]);
+        ])->layout('layouts.app');
     }
 }
