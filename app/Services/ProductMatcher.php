@@ -12,8 +12,11 @@ use App\Models\Product;
  */
 class ProductMatcher
 {
-    // Limpia espacios normales y NBSP (&nbsp;) que vienen de PDFs y exports de Excel,
-    // para que "SKU123" y "SKU123 " (con espacio invisible) no se traten como distintos.
+    // Limpia espacios normales y NBSP (&nbsp;) SOLO al inicio/final, que es lo que
+    // ensucia PDFs y exports de Excel (ej. "SKU123 " con espacio invisible al final).
+    // Ojo: NO colapsa espacios internos — algunos códigos de barras reales sí llevan
+    // más de un espacio a propósito (ej. terminaciones "12  %"), y aplastarlos a uno
+    // solo guardaba un código distinto al que en realidad se escaneó.
     public static function normalizeCode(?string $raw): ?string
     {
         if ($raw === null) {
@@ -21,7 +24,6 @@ class ProductMatcher
         }
 
         $clean = trim(str_replace(["\xC2\xA0", "\xA0"], ' ', (string) $raw));
-        $clean = preg_replace('/\s+/', ' ', $clean);
 
         return $clean === '' ? null : $clean;
     }
