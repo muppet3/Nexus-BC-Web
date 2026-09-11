@@ -5,6 +5,7 @@ namespace App\Livewire;
 use App\Models\HistorialAuditoria;
 use App\Models\Product;
 use App\Services\ProductMatcher;
+use App\Services\ZebraLabelPrinter;
 use Livewire\Component;
 
 /**
@@ -109,6 +110,26 @@ class AsignarCodigoBarras extends Component
 
         session()->flash('success', "Código asignado a {$this->productoActivo->sku}.");
         $this->cambiarProducto();
+    }
+
+    public function imprimirCodigo(ZebraLabelPrinter $printer)
+    {
+        if (! $this->productoActivo) {
+            return;
+        }
+
+        $resultado = $printer->imprimir($this->productoActivo, null, 'solo_codigo');
+        session()->flash($resultado['success'] ? 'success' : 'error', $resultado['message']);
+    }
+
+    public function imprimirDescripcion(ZebraLabelPrinter $printer)
+    {
+        if (! $this->productoActivo) {
+            return;
+        }
+
+        $resultado = $printer->imprimir($this->productoActivo, null, 'texto');
+        session()->flash($resultado['success'] ? 'success' : 'error', $resultado['message']);
     }
 
     public function render()

@@ -15,6 +15,12 @@
                 </div>
             @endif
 
+            @if (session('error'))
+                <div class="mb-6 p-4 bg-red-500/10 border border-red-500/30 rounded-xl text-red-300 text-sm font-medium">
+                    ✕ {{ session('error') }}
+                </div>
+            @endif
+
             @if (! $productoActivo)
                 <p class="text-sm text-zinc-500 mb-4">
                     Escanea el código de barras o teclea el <strong>SKU</strong> / nombre del producto.
@@ -23,6 +29,7 @@
                 <div class="relative">
                     <input
                         type="text"
+                        x-ref="searchInput"
                         wire:model.live.debounce.200ms="search"
                         autofocus
                         placeholder="Código de barras, SKU o nombre..."
@@ -31,7 +38,7 @@
                     @if ($search !== '')
                         <button
                             type="button"
-                            wire:click="limpiarBusqueda"
+                            @click="$wire.limpiarBusqueda().then(() => $nextTick(() => $refs.searchInput.focus()))"
                             title="Limpiar"
                             class="absolute inset-y-0 right-0 px-4 flex items-center text-zinc-500 hover:text-white transition-colors">
                             ✕
@@ -74,10 +81,28 @@
                     </div>
                 </div>
 
+                <div class="grid grid-cols-2 gap-3 mb-6">
+                    <button
+                        wire:click="imprimirCodigo"
+                        wire:loading.attr="disabled"
+                        wire:target="imprimirCodigo"
+                        class="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold text-blue-300 bg-blue-500/10 border border-blue-500/30 hover:bg-blue-500/20 transition-colors disabled:opacity-50">
+                        🖨️ Imprimir Código de Barras
+                    </button>
+                    <button
+                        wire:click="imprimirDescripcion"
+                        wire:loading.attr="disabled"
+                        wire:target="imprimirDescripcion"
+                        class="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold text-cyan-300 bg-cyan-500/10 border border-cyan-500/30 hover:bg-cyan-500/20 transition-colors disabled:opacity-50">
+                        🏷️ Imprimir Descripción
+                    </button>
+                </div>
+
                 <label class="block text-xs font-bold text-zinc-500 uppercase tracking-wider mb-2">Nuevo Código de Barras</label>
                 <div class="relative">
                     <input
                         type="text"
+                        x-ref="codigoInput"
                         wire:model="codigoNuevo"
                         wire:keydown.enter="guardarCodigo"
                         autofocus
@@ -87,7 +112,7 @@
                     @if ($codigoNuevo !== '')
                         <button
                             type="button"
-                            wire:click="limpiarCodigoNuevo"
+                            @click="$wire.limpiarCodigoNuevo().then(() => $nextTick(() => $refs.codigoInput.focus()))"
                             title="Limpiar"
                             class="absolute inset-y-0 right-0 px-4 flex items-center text-zinc-500 hover:text-white transition-colors">
                             ✕
