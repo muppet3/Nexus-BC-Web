@@ -34,6 +34,10 @@
                     <option value="censados">Censados</option>
                     <option value="pendientes">Pendientes</option>
                 </select>
+                <x-primary-button wire:click="exportarExcel" wire:loading.attr="disabled" wire:target="exportarExcel" class="bg-emerald-700 hover:bg-emerald-600 w-full md:w-auto justify-center">
+                    <span wire:loading.remove wire:target="exportarExcel">Exportar Excel</span>
+                    <span wire:loading wire:target="exportarExcel">Generando...</span>
+                </x-primary-button>
                 <x-primary-button wire:click="abrirMiHistorial" class="bg-fuchsia-600 hover:bg-fuchsia-500 w-full md:w-auto justify-center">
                     Mi Historial
                 </x-primary-button>

@@ -380,15 +380,12 @@ class CensoDashboard extends Component
         }
     }
 
-    public function render()
+    // Misma lógica de búsqueda/filtro que usa la tabla en pantalla — la reutiliza
+    // también el export a Excel, para que siempre exporte exactamente lo que ves.
+    private function getProductosFiltradosQuery()
     {
-        $totalTeorico = Product::sum('stock_teorico'); // <-- Product
-        $totalReal = Product::sum('stock_real');
-        $diferencia = $totalReal - $totalTeorico;
-
         $query = Product::query();
 
-        // ⚠️ CAMBIO CLAVE: Buscar por sku o name en lugar de clave o descripcion
         if (!empty($this->search)) {
             $query->where(function($q) {
                 $q->where('sku', 'like', '%' . $this->search . '%')
@@ -403,7 +400,63 @@ class CensoDashboard extends Component
             $query->where('stock_real', 0)->whereNull('seccion');
         }
 
-        $productos = $query->paginate(15);
+        return $query;
+    }
+
+    // 🔥 EXPORTAR CATÁLOGO A EXCEL (.xlsx real, con PhpSpreadsheet — no es un CSV disfrazado)
+    public function exportarExcel()
+    {
+        $spreadsheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+        $sheet->setTitle('Catálogo');
+
+        $headers = ['ID', 'SKU', 'Descripción', 'Unidad de Medida', 'Código de Barras', 'Cantidad Inventariada', 'Marca'];
+        $sheet->fromArray($headers, null, 'A1');
+        $sheet->getStyle('A1:G1')->getFont()->setBold(true);
+
+        // SKU y Código de Barras se fuerzan a texto explícito: si son puramente numéricos
+        // (muy común en códigos de barras reales), Excel los reinterpreta como número y
+        // puede mostrarlos en notación científica o comerse ceros a la izquierda — con
+        // setCellValueExplicit(TYPE_STRING) eso no pasa, queda idéntico a como está en la BD.
+        $row = 2;
+        $this->getProductosFiltradosQuery()->orderBy('sku')->chunk(500, function ($productos) use ($sheet, &$row) {
+            foreach ($productos as $p) {
+                $sheet->setCellValue("A{$row}", $p->id);
+                $sheet->setCellValueExplicit("B{$row}", (string) $p->sku, \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING);
+                $sheet->setCellValueExplicit("C{$row}", (string) $p->name, \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING);
+                $sheet->setCellValueExplicit("D{$row}", (string) $p->unit, \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING);
+                $sheet->setCellValueExplicit("E{$row}", (string) ($p->codigo_barras ?? ''), \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING);
+                $sheet->setCellValue("F{$row}", $p->stock_real);
+                $sheet->setCellValueExplicit("G{$row}", (string) ($p->marca ?? ''), \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING);
+                $row++;
+            }
+        });
+
+        // Refuerzo a nivel de columna (formato de celda "texto") por si algún visor de Excel
+        // reevalúa el contenido al abrir el archivo.
+        $sheet->getStyle('B:B')->getNumberFormat()->setFormatCode(\PhpOffice\PhpSpreadsheet\Style\NumberFormat::FORMAT_TEXT);
+        $sheet->getStyle('E:E')->getNumberFormat()->setFormatCode(\PhpOffice\PhpSpreadsheet\Style\NumberFormat::FORMAT_TEXT);
+
+        foreach (range('A', 'G') as $col) {
+            $sheet->getColumnDimension($col)->setAutoSize(true);
+        }
+
+        $fileName = 'catalogo_nexus_' . date('Y-m-d_H-i') . '.xlsx';
+
+        return response()->streamDownload(function () use ($spreadsheet) {
+            (new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($spreadsheet))->save('php://output');
+        }, $fileName, [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ]);
+    }
+
+    public function render()
+    {
+        $totalTeorico = Product::sum('stock_teorico'); // <-- Product
+        $totalReal = Product::sum('stock_real');
+        $diferencia = $totalReal - $totalTeorico;
+
+        $productos = $this->getProductosFiltradosQuery()->paginate(15);
 
         return view('livewire.censo-dashboard', [
             'productos' => $productos,
