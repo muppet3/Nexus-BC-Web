@@ -62,6 +62,9 @@ class AsignarCodigoBarras extends Component
         $this->productoActivo = Product::find($productId);
         $this->codigoNuevo = '';
         $this->resultados = [];
+        // Avisa al navegador que ya se ve el campo de código nuevo, para que Alpine le
+        // ponga el foco (ver mismo mecanismo en guardarCodigo()).
+        $this->dispatch('producto-seleccionado');
     }
 
     public function cambiarProducto()
@@ -110,6 +113,9 @@ class AsignarCodigoBarras extends Component
 
         session()->flash('success', "Código asignado a {$this->productoActivo->sku}.");
         $this->cambiarProducto();
+        // Avisa al navegador que ya regresó al buscador, para que Alpine le devuelva
+        // el foco (un $wire.metodo().then() no fue confiable aquí, esto sí).
+        $this->dispatch('codigo-guardado');
     }
 
     public function imprimirCodigo(ZebraLabelPrinter $printer)

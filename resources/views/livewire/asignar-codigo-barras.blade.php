@@ -1,4 +1,8 @@
-<div class="py-8 bg-zinc-950 min-h-screen text-zinc-100">
+<div
+    class="py-8 bg-zinc-950 min-h-screen text-zinc-100"
+    x-on:producto-seleccionado.window="$nextTick(() => $refs.codigoInput.focus())"
+    x-on:codigo-guardado.window="$nextTick(() => $refs.searchInput.focus())"
+>
     <div class="max-w-2xl mx-auto sm:px-6 lg:px-8 space-y-6">
 
         <div class="p-6 bg-[#141414] border border-zinc-800 shadow-2xl sm:rounded-xl">
