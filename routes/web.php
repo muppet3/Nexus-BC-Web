@@ -8,6 +8,7 @@ use App\Livewire\CensoDashboard; // <-- Importamos el nuevo dashboard de inventa
 use App\Livewire\CreatePurchaseOrder;
 use App\Livewire\ImportProducts;
 use App\Livewire\CreateProduct;
+use App\Livewire\AsignarCodigoBarras;
 
 // Redirección inteligente: Si entras a la raíz, te manda al dashboard de embarques.
 // Si no estás logueado, Laravel te mandará solito al Login de Volt.
@@ -36,7 +37,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
     
     // NUEVO: Dashboard de Inventario Físico (El que era de UltraWeb)
     Route::get('/censo', CensoDashboard::class)->name('censo.dashboard');
-    
+
+    // Herramienta de piso: asignar código de barras a productos que no tienen (lector USB)
+    Route::get('/asignar-codigo', AsignarCodigoBarras::class)->name('asignar-codigo');
+
 });
 
 require __DIR__.'/auth.php';
