@@ -33,12 +33,27 @@ class AsignarCodigoBarras extends Component
             return;
         }
 
-        $this->resultados = Product::where('sku', 'like', "%{$this->search}%")
+        // Mismo criterio que usa la app: código de barras exacto, sku/nombre por coincidencia parcial.
+        // Sirve también para encontrar un producto que YA tiene un código (ej. mal asignado) al escanearlo.
+        $this->resultados = Product::where('codigo_barras', $this->search)
+            ->orWhere('sku', 'like', "%{$this->search}%")
             ->orWhere('name', 'like', "%{$this->search}%")
             ->orderBy('sku')
             ->limit(20)
             ->get(['id', 'sku', 'name', 'codigo_barras', 'sin_codigo_fisico'])
             ->all();
+    }
+
+    public function limpiarBusqueda()
+    {
+        $this->search = '';
+        $this->resultados = [];
+    }
+
+    public function limpiarCodigoNuevo()
+    {
+        $this->codigoNuevo = '';
+        $this->resetErrorBag('codigoNuevo');
     }
 
     public function seleccionar($productId)

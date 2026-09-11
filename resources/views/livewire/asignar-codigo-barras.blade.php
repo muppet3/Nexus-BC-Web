@@ -17,16 +17,27 @@
 
             @if (! $productoActivo)
                 <p class="text-sm text-zinc-500 mb-4">
-                    Escanea o teclea el <strong>SKU</strong> del producto (el código de barras no va a dar resultado porque justo es lo que falta).
+                    Escanea el código de barras o teclea el <strong>SKU</strong> / nombre del producto.
                 </p>
 
-                <input
-                    type="text"
-                    wire:model.live.debounce.200ms="search"
-                    autofocus
-                    placeholder="SKU o nombre..."
-                    class="block w-full bg-[#0a0a0a] border border-zinc-800 rounded-lg text-zinc-200 focus:ring-fuchsia-500 focus:border-fuchsia-500 sm:text-base py-3"
-                >
+                <div class="relative">
+                    <input
+                        type="text"
+                        wire:model.live.debounce.200ms="search"
+                        autofocus
+                        placeholder="Código de barras, SKU o nombre..."
+                        class="block w-full bg-[#0a0a0a] border border-zinc-800 rounded-lg text-zinc-200 focus:ring-fuchsia-500 focus:border-fuchsia-500 sm:text-base py-3 pr-12"
+                    >
+                    @if ($search !== '')
+                        <button
+                            type="button"
+                            wire:click="limpiarBusqueda"
+                            title="Limpiar"
+                            class="absolute inset-y-0 right-0 px-4 flex items-center text-zinc-500 hover:text-white transition-colors">
+                            ✕
+                        </button>
+                    @endif
+                </div>
 
                 @if (count($resultados) > 0)
                     <div class="mt-4 border border-zinc-800 rounded-lg divide-y divide-zinc-800 max-h-96 overflow-y-auto">
@@ -64,14 +75,25 @@
                 </div>
 
                 <label class="block text-xs font-bold text-zinc-500 uppercase tracking-wider mb-2">Nuevo Código de Barras</label>
-                <input
-                    type="text"
-                    wire:model="codigoNuevo"
-                    wire:keydown.enter="guardarCodigo"
-                    autofocus
-                    placeholder="Escanea aquí..."
-                    class="block w-full bg-[#0a0a0a] border border-zinc-800 rounded-lg text-zinc-200 focus:ring-fuchsia-500 focus:border-fuchsia-500 sm:text-base py-3"
-                >
+                <div class="relative">
+                    <input
+                        type="text"
+                        wire:model="codigoNuevo"
+                        wire:keydown.enter="guardarCodigo"
+                        autofocus
+                        placeholder="Escanea aquí..."
+                        class="block w-full bg-[#0a0a0a] border border-zinc-800 rounded-lg text-zinc-200 focus:ring-fuchsia-500 focus:border-fuchsia-500 sm:text-base py-3 pr-12"
+                    >
+                    @if ($codigoNuevo !== '')
+                        <button
+                            type="button"
+                            wire:click="limpiarCodigoNuevo"
+                            title="Limpiar"
+                            class="absolute inset-y-0 right-0 px-4 flex items-center text-zinc-500 hover:text-white transition-colors">
+                            ✕
+                        </button>
+                    @endif
+                </div>
                 @error('codigoNuevo') <span class="text-red-400 text-xs mt-1 block">{{ $message }}</span> @enderror
 
                 <div class="mt-6 flex gap-3">
