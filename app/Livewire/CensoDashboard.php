@@ -8,6 +8,7 @@ use App\Models\Product; // <-- Apunta a Product de Nexus
 use App\Models\HallazgoCenso;
 use App\Models\HistorialAuditoria;
 use App\Models\User;
+use App\Services\ProductMatcher;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\DB;
 
@@ -24,10 +25,11 @@ class CensoDashboard extends Component
     
     // Formulario
     public $cantidad = 1;
-    public $seccionSeleccionada = 'OP1';
+    public $seccionSeleccionada = 'Mara';
     public $muebleTipo = 'A';
     public $anaquel = '';
     public $entrepano = '';
+    public $codigoBarras = '';
     public $hallazgoEditandoId = null;
 
     // Alertas y Modales
@@ -51,7 +53,7 @@ class CensoDashboard extends Component
     public $supervisorUsername = '';
     public $supervisorPin = '';
 
-    public $secciones = ['Ref ', 'OP1', 'OP2', 'OP3','PATIO 1', 'PATIO 2', 'AZOTEA'];
+    public $secciones = ['Mara', 'Ref ', 'OP1', 'OP2', 'OP3', 'PATIO 1', 'PATIO 2', 'AZOTEA'];
 
     public function updatingSearch()
     {
@@ -63,9 +65,10 @@ class CensoDashboard extends Component
     {
         $this->resetForm();
         $this->productoActivo = Product::find($id);
-        
+
         $this->hallazgoEditandoId = null;
         $this->cantidad = 1;
+        $this->codigoBarras = $this->productoActivo->codigo_barras ?? '';
 
         // Leemos directamente las columnas que creamos en la migración de Nexus
         if ($this->productoActivo->seccion) {
@@ -78,6 +81,7 @@ class CensoDashboard extends Component
         }
 
         $this->showSlideOver = true;
+        $this->dispatch('open-modal', 'modal-censo');
     }
 
     // 🔥 2. MI HISTORIAL (Ver lo que he hecho hoy y Editar)
@@ -91,37 +95,97 @@ class CensoDashboard extends Component
                 ->orderBy('updated_at', 'desc')
                 ->get();
             $this->showModalMiHistorial = true;
+            $this->dispatch('open-modal', 'modal-mi-historial');
         }
+    }
+
+    public function cerrarModalMiHistorial()
+    {
+        $this->showModalMiHistorial = false;
+        $this->dispatch('close-modal', 'modal-mi-historial');
     }
 
     public function editarMiHistorial($id)
     {
         $this->showModalMiHistorial = false;
+        $this->dispatch('close-modal', 'modal-mi-historial');
         $this->resetForm();
-        
+
         $hallazgo = HallazgoCenso::with('product')->find($id); // <-- product
         if ($hallazgo) {
             $this->productoActivo = $hallazgo->product;
             $this->hallazgoEditandoId = $hallazgo->id;
             $this->cantidad = $hallazgo->cantidad;
+            $this->codigoBarras = $this->productoActivo->codigo_barras ?? '';
             $this->seccionSeleccionada = $hallazgo->seccion;
             $this->muebleTipo = $hallazgo->mueble_tipo;
             $this->anaquel = $hallazgo->mueble_numero;
             $this->entrepano = $hallazgo->entrepano;
             $this->showSlideOver = true;
+            $this->dispatch('open-modal', 'modal-censo');
         }
     }
 
-    // 🔥 3. HISTORIAL DE AUDITORÍA DEL PRODUCTO
+    // 🔥 3. HISTORIAL DE AUDITORÍA DEL PRODUCTO (todos los registros, no solo los de hoy)
     public function abrirHistorialProducto()
     {
-        if ($this->productoActivo) {
-            $this->historialProductoData = HistorialAuditoria::with(['user', 'supervisor'])
-                ->where('product_id', $this->productoActivo->id) // <-- product_id
-                ->orderBy('created_at', 'desc')
-                ->get();
-            $this->showModalHistorialProducto = true;
+        if (! $this->productoActivo) {
+            return;
         }
+
+        $auditorias = HistorialAuditoria::with(['user:id,name', 'supervisor:id,name', 'hallazgo'])
+            ->where('product_id', $this->productoActivo->id)
+            ->orderBy('created_at', 'desc')
+            ->get();
+
+        // Mismo criterio que la API móvil: para renglones viejos sin hallazgo_id, se
+        // resuelve al vuelo usando el hallazgo más reciente del mismo usuario para este
+        // producto — así siempre hay algo que editar, aunque haya más de un candidato.
+        $auditorias->whereNull('hallazgo_id')->each(function ($aud) {
+            $masReciente = HallazgoCenso::where('product_id', $aud->product_id)
+                ->where('user_id', $aud->user_id)
+                ->orderByDesc('updated_at')
+                ->first();
+
+            if ($masReciente) {
+                $aud->setRelation('hallazgo', $masReciente);
+            }
+        });
+
+        $this->historialProductoData = $auditorias;
+        $this->showModalHistorialProducto = true;
+        $this->dispatch('open-modal', 'modal-historial-producto');
+    }
+
+    public function cerrarModalHistorialProducto()
+    {
+        $this->showModalHistorialProducto = false;
+        $this->dispatch('close-modal', 'modal-historial-producto');
+    }
+
+    // Editar cualquier registro desde el historial del producto (no solo los de hoy/propios).
+    public function editarDesdeHistorial($hallazgoId)
+    {
+        $hallazgo = HallazgoCenso::with('product')->find($hallazgoId);
+        if (! $hallazgo) {
+            session()->flash('error', 'Ese registro ya no existe (pudo haber sido borrado).');
+            return;
+        }
+
+        $this->showModalHistorialProducto = false;
+        $this->dispatch('close-modal', 'modal-historial-producto');
+
+        $this->resetForm();
+        $this->productoActivo = $hallazgo->product;
+        $this->hallazgoEditandoId = $hallazgo->id;
+        $this->cantidad = $hallazgo->cantidad;
+        $this->seccionSeleccionada = $hallazgo->seccion;
+        $this->muebleTipo = $hallazgo->mueble_tipo;
+        $this->anaquel = $hallazgo->mueble_numero;
+        $this->entrepano = $hallazgo->entrepano;
+        $this->codigoBarras = $this->productoActivo->codigo_barras ?? '';
+        $this->showSlideOver = true;
+        $this->dispatch('open-modal', 'modal-censo');
     }
 
     // 🔥 4. ADMINISTRACIÓN DE REGISTROS (solo master): ver de todos los usuarios y borrar
@@ -133,6 +197,7 @@ class CensoDashboard extends Component
 
         $this->cargarAdminRegistros();
         $this->showModalAdminRegistros = true;
+        $this->dispatch('open-modal', 'modal-admin-registros');
     }
 
     private function cargarAdminRegistros()
@@ -146,6 +211,7 @@ class CensoDashboard extends Component
     public function cerrarAdminRegistros()
     {
         $this->showModalAdminRegistros = false;
+        $this->dispatch('close-modal', 'modal-admin-registros');
     }
 
     public function borrarHallazgo($id)
@@ -191,21 +257,26 @@ class CensoDashboard extends Component
     public function cerrarPanel()
     {
         $this->showSlideOver = false;
+        $this->dispatch('close-modal', 'modal-censo');
         $this->resetForm();
     }
 
     public function resetForm()
     {
         $this->cantidad = 1;
-        $this->seccionSeleccionada = 'OP1';
+        $this->seccionSeleccionada = 'Mara';
         $this->muebleTipo = 'A';
         $this->anaquel = '';
         $this->entrepano = '';
+        $this->codigoBarras = '';
         $this->hallazgoEditandoId = null;
         $this->showAlertCensado = false;
         $this->showModalMovimiento = false;
         $this->showModalConsolidacion = false;
         $this->showModalAuth = false;
+        $this->dispatch('close-modal', 'modal-movimiento');
+        $this->dispatch('close-modal', 'modal-consolidacion');
+        $this->dispatch('close-modal', 'modal-auth');
         $this->supervisorUsername = '';
         $this->supervisorPin = '';
     }
@@ -227,35 +298,75 @@ class CensoDashboard extends Component
             return;
         }
 
+        $codigo = ProductMatcher::normalizeCode($this->codigoBarras);
+        if ($codigo !== null) {
+            $duplicado = Product::where('codigo_barras', $codigo)
+                ->where('id', '!=', $this->productoActivo->id)
+                ->first();
+
+            if ($duplicado) {
+                session()->flash('error', "Ese código de barras ya está asignado a: {$duplicado->sku} — {$duplicado->name}");
+                return;
+            }
+        }
+        $this->codigoBarras = $codigo ?? '';
+
         $seccionActual = $this->productoActivo->seccion ?? '';
 
         if (!empty($seccionActual) && $seccionActual !== $this->seccionSeleccionada) {
             $this->showModalMovimiento = true;
+            $this->dispatch('open-modal', 'modal-movimiento');
             return;
         }
         $this->continuarValidacionConsolidacion();
     }
 
+    public function cerrarModalMovimiento()
+    {
+        $this->showModalMovimiento = false;
+        $this->dispatch('close-modal', 'modal-movimiento');
+    }
+
     public function confirmarMovimientoFisico()
     {
         $this->showModalMovimiento = false;
+        $this->dispatch('close-modal', 'modal-movimiento');
         $this->continuarValidacionConsolidacion();
     }
 
     public function continuarValidacionConsolidacion()
     {
         $seccionActual = $this->productoActivo->seccion ?? '';
-        if (!empty($seccionActual)) {
+
+        // Este aviso es para cuando se registra un hallazgo NUEVO sobre una ubicación que
+        // ya tiene stock (ahí sí se suma). Al editar un registro existente no aplica: el
+        // guardado resta la cantidad anterior antes de sumar la nueva, así que es una
+        // corrección, no una suma — mostrar el aviso aquí solo generaba confusión.
+        if (!empty($seccionActual) && !$this->hallazgoEditandoId) {
             $this->showModalConsolidacion = true;
+            $this->dispatch('open-modal', 'modal-consolidacion');
             return;
         }
         $this->ejecutarGuardado();
     }
 
+    public function cerrarModalConsolidacion()
+    {
+        $this->showModalConsolidacion = false;
+        $this->dispatch('close-modal', 'modal-consolidacion');
+    }
+
     public function confirmarConsolidacion()
     {
         $this->showModalConsolidacion = false;
+        $this->dispatch('close-modal', 'modal-consolidacion');
         $this->ejecutarGuardado();
+    }
+
+    public function cerrarModalAuth()
+    {
+        $this->showModalAuth = false;
+        $this->dispatch('close-modal', 'modal-auth');
     }
 
     public function ejecutarGuardado($conAutorizacion = false)
@@ -304,6 +415,7 @@ class CensoDashboard extends Component
 
         if ($requiereAutorizacion && !$conAutorizacion) {
             $this->showModalAuth = true;
+            $this->dispatch('open-modal', 'modal-auth');
             return;
         }
 
@@ -320,6 +432,7 @@ class CensoDashboard extends Component
             }
             $supervisorId = $supervisor->id;
             $this->showModalAuth = false;
+            $this->dispatch('close-modal', 'modal-auth');
         }
 
         DB::beginTransaction();
@@ -368,6 +481,8 @@ class CensoDashboard extends Component
                 'mueble_tipo' => $this->muebleTipo,
                 'mueble_numero' => $this->anaquel,
                 'entrepano' => $this->entrepano,
+                'codigo_barras' => $this->codigoBarras !== '' ? $this->codigoBarras : null,
+                'sin_codigo_fisico' => $this->codigoBarras === '',
             ]);
 
             DB::commit();

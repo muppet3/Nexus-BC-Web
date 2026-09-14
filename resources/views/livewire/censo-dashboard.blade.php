@@ -83,7 +83,10 @@
                                     </span>
                                 </td>
                                 <td class="px-6 py-4 text-right space-x-2">
-                                    <button wire:click="abrirPanel({{ $producto->id }})" class="text-fuchsia-400 hover:text-fuchsia-300 text-sm font-medium transition-colors">
+                                    <button
+                                        wire:click="abrirPanel({{ $producto->id }})"
+                                        x-on:click="$dispatch('open-modal', 'modal-censo')"
+                                        class="text-fuchsia-400 hover:text-fuchsia-300 text-sm font-medium transition-colors">
                                         Censar
                                     </button>
                                 </td>
@@ -108,9 +111,14 @@
     <x-modal name="modal-censo" :show="$showSlideOver" maxWidth="md">
         <div class="p-6 bg-gray-900 text-white">
             @if($productoActivo)
-                <div class="mb-4">
-                    <h2 class="text-lg font-bold text-fuchsia-400">{{ $productoActivo->sku }}</h2>
-                    <p class="text-sm text-gray-400">{{ $productoActivo->name }}</p>
+                <div class="mb-4 flex items-start justify-between gap-3">
+                    <div>
+                        <h2 class="text-lg font-bold text-fuchsia-400">{{ $productoActivo->sku }}</h2>
+                        <p class="text-sm text-gray-400">{{ $productoActivo->name }}</p>
+                    </div>
+                    <button wire:click="abrirHistorialProducto" class="shrink-0 text-xs font-bold text-cyan-400 hover:text-cyan-300 transition-colors whitespace-nowrap">
+                        📜 Ver Historial
+                    </button>
                 </div>
 
                 @if($showAlertCensado && !$hallazgoEditandoId)
@@ -121,6 +129,11 @@
                 @endif
 
                 <div class="space-y-4">
+                    <div>
+                        <x-input-label for="codigoBarras" value="Código de Barras" class="text-gray-300" />
+                        <x-text-input wire:model="codigoBarras" id="codigoBarras" type="text" class="mt-1 block w-full bg-gray-800 text-white border-gray-600" placeholder="Escanea o teclea el código..." />
+                    </div>
+
                     <div>
                         <x-input-label for="cantidad" value="Cantidad Encontrada" class="text-gray-300" />
                         <x-text-input wire:model="cantidad" id="cantidad" type="number" min="1" class="mt-1 block w-full bg-gray-800 text-white border-gray-600" />
@@ -159,7 +172,7 @@
                 </div>
 
                 <div class="mt-6 flex justify-end gap-3">
-                    <x-secondary-button wire:click="cerrarPanel" class="bg-gray-800 text-gray-300 border-gray-600 hover:bg-gray-700">Cancelar</x-secondary-button>
+                    <x-secondary-button wire:click="cerrarPanel" x-on:click="$dispatch('close-modal', 'modal-censo')" class="bg-gray-800 text-gray-300 border-gray-600 hover:bg-gray-700">Cancelar</x-secondary-button>
                     <x-primary-button wire:click="validarYGuardar" class="bg-fuchsia-600 hover:bg-fuchsia-500">Guardar Censo</x-primary-button>
                 </div>
             @endif
@@ -174,7 +187,7 @@
             <h3 class="text-lg font-bold mb-2">¿Consolidar Mercancía?</h3>
             <p class="text-sm text-gray-400 mb-6">El producto ya existe en la ubicación. La cantidad se sumará al stock existente.</p>
             <div class="flex justify-center gap-3">
-                <x-secondary-button wire:click="$set('showModalConsolidacion', false)" class="bg-gray-800 text-gray-300 border-gray-600 hover:bg-gray-700">Cancelar</x-secondary-button>
+                <x-secondary-button wire:click="cerrarModalConsolidacion" class="bg-gray-800 text-gray-300 border-gray-600 hover:bg-gray-700">Cancelar</x-secondary-button>
                 <x-primary-button wire:click="confirmarConsolidacion" class="bg-yellow-600 hover:bg-yellow-500">Sí, Sumar Stock</x-primary-button>
             </div>
         </div>
@@ -187,7 +200,7 @@
             <h3 class="text-lg font-bold mb-2">¡Cambio de Zona Detectado!</h3>
             <p class="text-sm text-gray-400 mb-6">Estás cambiando el producto de sección. Requerirás autorización de un compañero.</p>
             <div class="flex justify-center gap-3">
-                <x-secondary-button wire:click="$set('showModalMovimiento', false)" class="bg-gray-800 text-gray-300 border-gray-600 hover:bg-gray-700">Cancelar</x-secondary-button>
+                <x-secondary-button wire:click="cerrarModalMovimiento" class="bg-gray-800 text-gray-300 border-gray-600 hover:bg-gray-700">Cancelar</x-secondary-button>
                 <x-primary-button wire:click="confirmarMovimientoFisico" class="bg-red-600 hover:bg-red-500">Continuar</x-primary-button>
             </div>
         </div>
@@ -215,7 +228,7 @@
             </div>
 
             <div class="mt-6 flex justify-end gap-3">
-                <x-secondary-button wire:click="$set('showModalAuth', false)" class="bg-gray-800 text-gray-300 border-gray-600 hover:bg-gray-700">Cancelar</x-secondary-button>
+                <x-secondary-button wire:click="cerrarModalAuth" class="bg-gray-800 text-gray-300 border-gray-600 hover:bg-gray-700">Cancelar</x-secondary-button>
                 <x-primary-button wire:click="ejecutarGuardado(true)" class="bg-fuchsia-600 hover:bg-fuchsia-500">Autorizar y Guardar</x-primary-button>
             </div>
         </div>
@@ -226,7 +239,7 @@
         <div class="p-6 bg-gray-900 text-white">
             <div class="flex justify-between items-center mb-4">
                 <h3 class="text-lg font-bold">Mis Registros de Hoy</h3>
-                <button wire:click="$set('showModalMiHistorial', false)" class="text-gray-400 hover:text-white">✕</button>
+                <button wire:click="cerrarModalMiHistorial" class="text-gray-400 hover:text-white">✕</button>
             </div>
 
             <div class="max-h-[28rem] overflow-y-auto divide-y divide-gray-700">
@@ -245,6 +258,42 @@
                     </button>
                 @empty
                     <p class="text-sm text-gray-500 italic py-4 text-center">Aún no tienes registros hoy.</p>
+                @endforelse
+            </div>
+        </div>
+    </x-modal>
+
+    <!-- Historial del Producto: todos los registros de auditoría (no solo hoy), click para editar -->
+    <x-modal name="modal-historial-producto" :show="$showModalHistorialProducto" maxWidth="2xl">
+        <div class="p-6 bg-gray-900 text-white">
+            <div class="flex justify-between items-center mb-1">
+                <h3 class="text-lg font-bold">Historial de {{ $productoActivo->sku ?? '' }}</h3>
+                <button wire:click="cerrarModalHistorialProducto" class="text-gray-400 hover:text-white">✕</button>
+            </div>
+            <p class="text-xs text-gray-500 mb-4">{{ $productoActivo->name ?? '' }}</p>
+
+            <div class="max-h-[28rem] overflow-y-auto divide-y divide-gray-700">
+                @forelse ($historialProductoData as $aud)
+                    <div wire:key="hist-prod-{{ $aud->id }}" class="py-3 flex items-center justify-between gap-3">
+                        <div class="min-w-0">
+                            <div class="text-sm font-bold text-white">{{ $aud->accion }}</div>
+                            <div class="text-xs text-gray-400">{{ $aud->detalle_anterior }} → {{ $aud->detalle_nuevo }}</div>
+                            <div class="text-xs text-gray-500">
+                                Por: {{ $aud->user->name ?? 'N/A' }}
+                                @if($aud->supervisor) · Autorizó: {{ $aud->supervisor->name }} @endif
+                                · {{ $aud->created_at->format('d/m/Y H:i') }}
+                            </div>
+                        </div>
+                        @if($aud->hallazgo)
+                            <button
+                                wire:click="editarDesdeHistorial({{ $aud->hallazgo->id }})"
+                                class="shrink-0 text-xs font-bold px-3 py-1.5 bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 rounded-md hover:bg-cyan-500/20 transition-colors">
+                                Editar
+                            </button>
+                        @endif
+                    </div>
+                @empty
+                    <p class="text-sm text-gray-500 italic py-4 text-center">Este producto no tiene historial todavía.</p>
                 @endforelse
             </div>
         </div>

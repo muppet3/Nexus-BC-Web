@@ -59,6 +59,10 @@
                                 <div class="min-w-0">
                                     <div class="text-sm font-bold text-fuchsia-400">{{ $p['sku'] }}</div>
                                     <div class="text-xs text-zinc-400 truncate">{{ $p['name'] }}</div>
+                                    <div class="text-[11px] text-zinc-500 mt-0.5">
+                                        📍 {{ $p['ubicacion'] ?? 'Sin ubicación' }}
+                                        &middot; Existencia: <span class="font-semibold text-zinc-300">{{ $p['stock_real'] }}</span>
+                                    </div>
                                 </div>
                                 @if (empty($p['codigo_barras']))
                                     <span class="shrink-0 text-[10px] font-bold px-2 py-1 rounded bg-orange-500/10 text-orange-400 border border-orange-500/30">SIN CÓDIGO</span>

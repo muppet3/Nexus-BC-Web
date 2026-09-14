@@ -18,6 +18,16 @@ class Product extends Model
         'seccion', 'mueble_tipo', 'mueble_numero', 'entrepano'
     ];
 
+    // Ubicación armada a partir de sección/mueble/entrepaño, igual criterio que HallazgoCenso.
+    public function getUbicacionCompletaAttribute()
+    {
+        if (! $this->seccion) {
+            return null;
+        }
+
+        return "{$this->seccion}-{$this->mueble_tipo} {$this->mueble_numero}-{$this->entrepano}";
+    }
+
     // Relación original de Nexus (Historial de movimientos viejos)
     public function locationHistory()
     {

@@ -219,17 +219,18 @@ class ApiCensoController extends Controller
             ->get();
 
         // Para renglones viejos (de antes de que existiera hallazgo_id) master puede seguir
-        // editando/borrando: se resuelve la liga al vuelo, sin guardar nada, y solo si hay un
-        // único hallazgo candidato (mismo producto+usuario) — si es ambiguo, se deja igual que
-        // a cualquier otro usuario, sin ícono, en vez de arriesgarse a apuntar al equivocado.
+        // editando/borrando: se resuelve la liga al vuelo, sin guardar nada. Si hay más de un
+        // hallazgo candidato (mismo producto+usuario), se usa el más reciente (updated_at) —
+        // decisión aceptada aunque no sea 100% seguro que sea el registro correcto.
         if ($request->user()->role === 'master') {
             $auditorias->whereNull('hallazgo_id')->each(function ($aud) {
-                $candidatos = HallazgoCenso::where('product_id', $aud->product_id)
+                $masReciente = HallazgoCenso::where('product_id', $aud->product_id)
                     ->where('user_id', $aud->user_id)
-                    ->get(['id', 'user_id', 'cantidad', 'seccion', 'mueble_tipo', 'mueble_numero', 'entrepano']);
+                    ->orderByDesc('updated_at')
+                    ->first(['id', 'user_id', 'cantidad', 'seccion', 'mueble_tipo', 'mueble_numero', 'entrepano']);
 
-                if ($candidatos->count() === 1) {
-                    $aud->setRelation('hallazgo', $candidatos->first());
+                if ($masReciente) {
+                    $aud->setRelation('hallazgo', $masReciente);
                 }
             });
         }
