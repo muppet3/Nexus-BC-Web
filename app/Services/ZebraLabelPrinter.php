@@ -5,18 +5,30 @@ namespace App\Services;
 use App\Models\Product;
 
 /**
- * Genera e imprime las etiquetas Zebra (ZPL) — usado tanto por la API del
- * celular como por las pantallas web que corren en la misma máquina que la
- * impresora compartida. Un solo lugar con la plantilla ZPL para que ambos
- * lados impriman siempre exactamente igual.
+ * Genera e imprime las etiquetas (ZPL) — usado tanto por la API del celular
+ * como por las pantallas web que corren en la misma máquina que las
+ * impresoras compartidas. Un solo lugar con la plantilla ZPL para que todos
+ * los lados impriman siempre exactamente igual.
+ *
+ * A pesar del nombre de la clase, no es exclusivo de Zebra: la Ribetec
+ * RT-420BE también habla ZPL, así que el mismo generador le sirve a ambas —
+ * lo único que cambia es a qué recurso compartido de Windows se manda.
  */
 class ZebraLabelPrinter
 {
+    // Nombre del recurso compartido de cada impresora en Windows. Si se agrega
+    // una impresora nueva compatible con ZPL, solo hay que sumar su entrada aquí.
+    private const IMPRESORAS = [
+        'zebra' => '\\\\127.0.0.1\\ZEBRA',
+        'ribetec' => '\\\\127.0.0.1\\RIBETEC',
+    ];
+
     /**
      * @param  string  $tipo  'barras' (descripción + código, 2 etiquetas), 'texto'
      *                        (solo descripción) o 'solo_codigo' (solo código de barras).
+     * @param  string  $impresora  'zebra' (default) o 'ribetec'.
      */
-    public function imprimir(Product $producto, ?string $codigoImpreso, string $tipo = 'barras', int $cantidad = 1): array
+    public function imprimir(Product $producto, ?string $codigoImpreso, string $tipo = 'barras', int $cantidad = 1, string $impresora = 'zebra'): array
     {
         $codigo = $codigoImpreso ?: ($producto->codigo_barras ?: $producto->sku);
 
@@ -86,7 +98,7 @@ class ZebraLabelPrinter
 
             file_put_contents($archivoTemporal, $zpl);
 
-            $impresoraCompartida = "\\\\127.0.0.1\\ZEBRA";
+            $impresoraCompartida = self::IMPRESORAS[$impresora] ?? self::IMPRESORAS['zebra'];
             $impresion = copy($archivoTemporal, $impresoraCompartida);
 
             if (file_exists($archivoTemporal)) {

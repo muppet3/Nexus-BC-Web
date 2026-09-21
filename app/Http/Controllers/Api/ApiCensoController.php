@@ -278,6 +278,7 @@ class ApiCensoController extends Controller
             'producto_id' => 'required|exists:products,id',
             'tipo' => 'nullable|in:barras,texto,solo_codigo',
             'cantidad' => 'nullable|integer|min:1|max:50',
+            'impresora' => 'nullable|in:zebra,ribetec',
         ]);
 
         $producto = Product::find($request->producto_id);
@@ -286,7 +287,8 @@ class ApiCensoController extends Controller
             $producto,
             $request->codigo_impreso,
             $request->tipo ?: 'barras',
-            $request->cantidad ?: 1
+            $request->cantidad ?: 1,
+            $request->impresora ?: 'zebra'
         );
 
         return response()->json($resultado, $resultado['success'] ? 200 : 500);
