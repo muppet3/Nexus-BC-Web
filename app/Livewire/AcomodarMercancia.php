@@ -52,7 +52,9 @@ class AcomodarMercancia extends Component
     {
         $producto = Product::find($productId);
         $this->productoActivo = $producto;
-        $this->codigoBarras = $producto->codigo_barras ?? '';
+        // Mismo criterio que Inventario: si ya tiene código, se queda ese; si no,
+        // se precarga con el SKU (muchos productos usan el SKU como código físico).
+        $this->codigoBarras = $producto->codigo_barras ?: $producto->sku;
 
         if ($producto->seccion) {
             $this->seccionSeleccionada = $producto->seccion;

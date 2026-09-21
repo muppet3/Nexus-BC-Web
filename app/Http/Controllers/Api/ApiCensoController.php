@@ -430,7 +430,10 @@ class ApiCensoController extends Controller
                 'detalle_nuevo' => "Ubi: {$nuevaUbicacion}",
             ]);
 
-            if ($request->filled('codigo_barras')) {
+            // Solo se llama al servicio si el código realmente cambió — si no, cada
+            // reubicación (que ahora siempre manda algo, aunque sea el SKU por default)
+            // generaría una entrada de auditoría de "código asignado" sin haber pasado nada.
+            if ($request->filled('codigo_barras') && $request->codigo_barras !== $producto->codigo_barras) {
                 $resultadoCodigo = $barcodeService->asignar($producto, $request->codigo_barras, $user);
                 if (!$resultadoCodigo['success']) {
                     DB::rollBack();
