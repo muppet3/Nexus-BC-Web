@@ -9,6 +9,7 @@ use App\Livewire\CreatePurchaseOrder;
 use App\Livewire\ImportProducts;
 use App\Livewire\CreateProduct;
 use App\Livewire\AsignarCodigoBarras;
+use App\Livewire\AcomodarMercancia;
 
 // Redirección inteligente: Si entras a la raíz, te manda al dashboard de embarques.
 // Si no estás logueado, Laravel te mandará solito al Login de Volt.
@@ -40,6 +41,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     // Herramienta de piso: asignar código de barras a productos que no tienen (lector USB)
     Route::get('/asignar-codigo', AsignarCodigoBarras::class)->name('asignar-codigo');
+
+    // Herramienta de piso: reubicar mercancía sin contar (solo ubicación)
+    Route::get('/acomodar-mercancia', AcomodarMercancia::class)->name('acomodar-mercancia');
 
 });
 

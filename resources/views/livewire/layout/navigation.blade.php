@@ -35,6 +35,10 @@ new class extends Component
                         {{ __('Código de Barras') }}
                     </x-nav-link>
 
+                    <x-nav-link :href="route('acomodar-mercancia')" :active="request()->routeIs('acomodar-mercancia')" wire:navigate class="text-zinc-300 hover:text-white focus:text-white font-bold tracking-wide">
+                        {{ __('Acomodar Mercancía') }}
+                    </x-nav-link>
+
                     @if (auth()->user()->puedeGestionarCatalogo())
                         <x-nav-link :href="route('purchase-orders.create')" :active="request()->routeIs('purchase-orders.create')" wire:navigate class="text-zinc-300 hover:text-white focus:text-white font-bold tracking-wide">
                             {{ __('Nueva OC') }}
@@ -102,6 +106,10 @@ new class extends Component
 
             <x-responsive-nav-link :href="route('asignar-codigo')" :active="request()->routeIs('asignar-codigo')" wire:navigate class="text-zinc-300 hover:text-white hover:bg-zinc-800">
                 {{ __('Código de Barras') }}
+            </x-responsive-nav-link>
+
+            <x-responsive-nav-link :href="route('acomodar-mercancia')" :active="request()->routeIs('acomodar-mercancia')" wire:navigate class="text-zinc-300 hover:text-white hover:bg-zinc-800">
+                {{ __('Acomodar Mercancía') }}
             </x-responsive-nav-link>
 
             @if (auth()->user()->puedeGestionarCatalogo())
