@@ -8,9 +8,10 @@ use App\Models\User;
 use App\Models\Product; 
 use App\Models\HallazgoCenso;
 use App\Models\HistorialAuditoria;
+use App\Services\BarcodeAssignmentService;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Http; 
+use Illuminate\Support\Facades\Http;
 
 class ApiCensoController extends Controller
 {
@@ -338,6 +339,115 @@ class ApiCensoController extends Controller
         } catch (\Exception $e) {
             DB::rollBack();
             return response()->json(['success' => false, 'message' => 'Error al borrar: ' . $e->getMessage()], 500);
+        }
+    }
+
+    // --------------------------------------------------------
+    // 8. ASIGNAR CÓDIGO DE BARRAS — mismo servicio que usa la web, sin
+    //    tocar cantidad, ubicación ni stock.
+    // --------------------------------------------------------
+    public function asignarCodigoBarras(Request $request, BarcodeAssignmentService $service)
+    {
+        $request->validate([
+            'producto_id' => 'required|exists:products,id',
+            'codigo' => 'required|string',
+        ]);
+
+        $producto = Product::find($request->producto_id);
+        $resultado = $service->asignar($producto, $request->codigo, $request->user());
+
+        return response()->json($resultado, $resultado['success'] ? 200 : 422);
+    }
+
+    // --------------------------------------------------------
+    // 9. REUBICAR PRODUCTO ("Acomodar Mercancía") — solo ubicación (y de
+    //    paso, código de barras si hace falta). NO crea hallazgo ni toca
+    //    stock_real: no es un conteo, es solo mover mercancía de lugar.
+    // --------------------------------------------------------
+    public function reubicarProducto(Request $request, BarcodeAssignmentService $barcodeService)
+    {
+        $request->validate([
+            'producto_id' => 'required|exists:products,id',
+            'seccion' => 'required|string',
+            'mueble_tipo' => 'required|string',
+            'mueble_numero' => 'required|string',
+            'entrepano' => 'required|string',
+            'codigo_barras' => 'nullable|string',
+            'supervisor_username' => 'nullable|string',
+            'supervisor_pin' => 'nullable|string',
+        ]);
+
+        $user = $request->user();
+        $producto = Product::find($request->producto_id);
+
+        $nuevaUbicacion = "{$request->seccion}-{$request->mueble_tipo} {$request->mueble_numero}-{$request->entrepano}";
+
+        $ubicacionActual = null;
+        if ($producto->seccion) {
+            $ubicacionActual = "{$producto->seccion}-{$producto->mueble_tipo} {$producto->mueble_numero}-{$producto->entrepano}";
+        }
+
+        $requiereAutorizacion = $ubicacionActual && $ubicacionActual !== $nuevaUbicacion && $user->role === 'par';
+        $supervisorId = null;
+
+        if ($requiereAutorizacion) {
+            if (!$request->supervisor_username || !$request->supervisor_pin) {
+                return response()->json([
+                    'success' => false,
+                    'needs_auth' => true,
+                    'message' => 'Estás cambiando una ubicación ya establecida. Un compañero debe autorizar.',
+                ], 403);
+            }
+
+            $supervisor = User::where('username', $request->supervisor_username)->first();
+            if (!$supervisor || !Hash::check($request->supervisor_pin, $supervisor->pin)) {
+                return response()->json(['success' => false, 'message' => 'PIN de compañero incorrecto.'], 401);
+            }
+            if ($supervisor->id === $user->id) {
+                return response()->json(['success' => false, 'message' => 'No puedes autorizarte a ti mismo.'], 403);
+            }
+            $supervisorId = $supervisor->id;
+        }
+
+        DB::beginTransaction();
+        try {
+            $producto->update([
+                'seccion' => $request->seccion,
+                'mueble_tipo' => $request->mueble_tipo,
+                'mueble_numero' => $request->mueble_numero,
+                'entrepano' => $request->entrepano,
+            ]);
+
+            HistorialAuditoria::create([
+                'product_id' => $producto->id,
+                'hallazgo_id' => null, // no es un conteo, no hay hallazgo asociado
+                'user_id' => $user->id,
+                'supervisor_id' => $supervisorId,
+                'accion' => 'Reubicación sin conteo',
+                'detalle_anterior' => 'Ubi: ' . ($ubicacionActual ?? 'S/U'),
+                'detalle_nuevo' => "Ubi: {$nuevaUbicacion}",
+            ]);
+
+            if ($request->filled('codigo_barras')) {
+                $resultadoCodigo = $barcodeService->asignar($producto, $request->codigo_barras, $user);
+                if (!$resultadoCodigo['success']) {
+                    DB::rollBack();
+
+                    return response()->json($resultadoCodigo, 422);
+                }
+            }
+
+            DB::commit();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Ubicación actualizada correctamente.',
+                'producto' => $producto->fresh(),
+            ]);
+        } catch (\Exception $e) {
+            DB::rollBack();
+
+            return response()->json(['success' => false, 'message' => 'Error: ' . $e->getMessage()], 500);
         }
     }
 }

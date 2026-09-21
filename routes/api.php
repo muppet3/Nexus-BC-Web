@@ -26,4 +26,10 @@ Route::middleware('auth:sanctum')->group(function () {
     
     //  NUEVO: Impresión de etiquetas Zebra
     Route::post('/imprimir-etiqueta', [ApiCensoController::class, 'imprimirEtiqueta']);
+
+    // Asignar código de barras (sin tocar cantidad/ubicación/stock)
+    Route::post('/asignar-codigo-barras', [ApiCensoController::class, 'asignarCodigoBarras']);
+
+    // Acomodar mercancía: solo ubicación (y de paso código de barras), sin conteo
+    Route::post('/reubicar-producto', [ApiCensoController::class, 'reubicarProducto']);
 });

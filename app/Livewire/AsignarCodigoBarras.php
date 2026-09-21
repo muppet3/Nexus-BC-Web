@@ -2,9 +2,8 @@
 
 namespace App\Livewire;
 
-use App\Models\HistorialAuditoria;
 use App\Models\Product;
-use App\Services\ProductMatcher;
+use App\Services\BarcodeAssignmentService;
 use App\Services\ZebraLabelPrinter;
 use Livewire\Component;
 
@@ -96,7 +95,7 @@ class AsignarCodigoBarras extends Component
         $this->search = '';
     }
 
-    public function guardarCodigo()
+    public function guardarCodigo(BarcodeAssignmentService $service)
     {
         $this->validate(['codigoNuevo' => 'required|string']);
 
@@ -104,36 +103,15 @@ class AsignarCodigoBarras extends Component
             return;
         }
 
-        $codigo = ProductMatcher::normalizeCode($this->codigoNuevo);
+        $resultado = $service->asignar($this->productoActivo, $this->codigoNuevo, auth()->user());
 
-        $existente = Product::where('codigo_barras', $codigo)
-            ->where('id', '!=', $this->productoActivo->id)
-            ->first();
-
-        if ($existente) {
-            $this->addError('codigoNuevo', "Ese código ya está asignado a: {$existente->sku} — {$existente->name}");
+        if (! $resultado['success']) {
+            $this->addError('codigoNuevo', $resultado['message']);
 
             return;
         }
 
-        $anterior = $this->productoActivo->codigo_barras;
-
-        $this->productoActivo->update([
-            'codigo_barras' => $codigo,
-            'sin_codigo_fisico' => false,
-        ]);
-
-        HistorialAuditoria::create([
-            'product_id' => $this->productoActivo->id,
-            'hallazgo_id' => null,
-            'user_id' => auth()->id(),
-            'supervisor_id' => null,
-            'accion' => 'Código de barras asignado',
-            'detalle_anterior' => 'Código: ' . ($anterior ?: 'sin código'),
-            'detalle_nuevo' => "Código: {$codigo}",
-        ]);
-
-        session()->flash('success', "Código asignado a {$this->productoActivo->sku}.");
+        session()->flash('success', $resultado['message']);
         $this->cambiarProducto();
         // Avisa al navegador que ya regresó al buscador, para que Alpine le devuelva
         // el foco (un $wire.metodo().then() no fue confiable aquí, esto sí).
