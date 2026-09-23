@@ -26,6 +26,10 @@ class AsignarCodigoBarras extends Component
 
     public string $codigoNuevo = '';
 
+    // 'zebra' o 'ribetec' — el valor real que gana en el navegador es el de
+    // localStorage (ver blade), esto solo es el default antes de que Alpine lo pise.
+    public string $impresora = 'zebra';
+
     public function limpiarCodigoNuevo()
     {
         $this->codigoNuevo = '';
@@ -78,7 +82,7 @@ class AsignarCodigoBarras extends Component
             return;
         }
 
-        $resultado = $printer->imprimir($this->productoActivo, null, 'solo_codigo');
+        $resultado = $printer->imprimir($this->productoActivo, null, 'solo_codigo', 1, $this->impresora);
         session()->flash($resultado['success'] ? 'success' : 'error', $resultado['message']);
     }
 
@@ -88,7 +92,7 @@ class AsignarCodigoBarras extends Component
             return;
         }
 
-        $resultado = $printer->imprimir($this->productoActivo, null, 'texto');
+        $resultado = $printer->imprimir($this->productoActivo, null, 'texto', 1, $this->impresora);
         session()->flash($resultado['success'] ? 'success' : 'error', $resultado['message']);
     }
 

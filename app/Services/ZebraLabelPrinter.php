@@ -23,6 +23,17 @@ class ZebraLabelPrinter
         'ribetec' => '\\\\127.0.0.1\\RIBETEC',
     ];
 
+    // ^MT le dice a la impresora si debe esperar cinta/ribbon (transferencia
+    // térmica) o no (térmica directa). Si no se manda, la impresora usa lo que
+    // ya tenga configurado en su propio menú/DIP-switch — si eso no coincide
+    // con el modo real, sale la etiqueta en blanco (intenta "transferir" tinta
+    // de un ribbon que no existe). La Zebra usa ribbon; la Ribetec RT-420BE es
+    // térmica directa, sin ribbon.
+    private const MODO_IMPRESION = [
+        'zebra' => '^MTT',
+        'ribetec' => '^MTD',
+    ];
+
     /**
      * @param  string  $tipo  'barras' (descripción + código, 2 etiquetas), 'texto'
      *                        (solo descripción) o 'solo_codigo' (solo código de barras).
@@ -44,12 +55,14 @@ class ZebraLabelPrinter
         $sku = strtoupper($producto->sku);
         $unidad = strtoupper($producto->unit);
 
+        $modoImpresion = self::MODO_IMPRESION[$impresora] ?? self::MODO_IMPRESION['zebra'];
         $zpl = '';
 
         // Etiqueta de texto: descripción, unidad y SKU, sin código de barras.
         if (in_array($tipo, ['barras', 'texto'], true)) {
             // Etiqueta de 2 1/4" x 1" @ 203 dpi -> 457 x 203 dots.
             $zpl .= "^XA\n";
+            $zpl .= "{$modoImpresion}\n";
             $zpl .= "~SD20\n";
             $zpl .= "^PW457\n";
             $zpl .= "^LL203\n";
@@ -80,6 +93,7 @@ class ZebraLabelPrinter
 
             // Etiqueta de 2 1/4" x 1" @ 203 dpi -> 457 x 203 dots.
             $zpl .= "^XA\n";
+            $zpl .= "{$modoImpresion}\n";
             $zpl .= "~SD20\n";
             $zpl .= "^PW457\n";
             $zpl .= "^LL203\n";

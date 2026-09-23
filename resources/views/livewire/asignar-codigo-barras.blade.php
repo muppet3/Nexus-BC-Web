@@ -89,6 +89,25 @@
                     </div>
                 </div>
 
+                <div
+                    x-data="{ impresora: localStorage.getItem('impresora_default') || 'zebra' }"
+                    x-init="$wire.set('impresora', impresora)"
+                    class="flex items-center gap-2 mb-4">
+                    <span class="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">Impresora</span>
+                    <button type="button"
+                        @click="impresora = 'zebra'; localStorage.setItem('impresora_default', 'zebra'); $wire.set('impresora', 'zebra')"
+                        :class="impresora === 'zebra' ? 'bg-fuchsia-500/20 border-fuchsia-500 text-white' : 'bg-transparent border-white/20 text-zinc-500'"
+                        class="px-3 py-1.5 rounded-lg text-xs font-bold border transition-colors">
+                        Zebra
+                    </button>
+                    <button type="button"
+                        @click="impresora = 'ribetec'; localStorage.setItem('impresora_default', 'ribetec'); $wire.set('impresora', 'ribetec')"
+                        :class="impresora === 'ribetec' ? 'bg-fuchsia-500/20 border-fuchsia-500 text-white' : 'bg-transparent border-white/20 text-zinc-500'"
+                        class="px-3 py-1.5 rounded-lg text-xs font-bold border transition-colors">
+                        Ribetec
+                    </button>
+                </div>
+
                 <div class="grid grid-cols-2 gap-3 mb-6">
                     <button
                         wire:click="imprimirCodigo"
