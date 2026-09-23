@@ -20,7 +20,7 @@ class ZebraLabelPrinter
     // una impresora nueva compatible con ZPL, solo hay que sumar su entrada aquí.
     private const IMPRESORAS = [
         'zebra' => '\\\\127.0.0.1\\ZEBRA',
-        'ribetec' => '\\\\127.0.0.1\\RIBETEC',
+        'ribetec' => '\\\\127.0.0.1\\RIBETEC2',
     ];
 
     // ^MT le dice a la impresora si debe esperar cinta/ribbon (transferencia
@@ -32,6 +32,22 @@ class ZebraLabelPrinter
     private const MODO_IMPRESION = [
         'zebra' => '^MTT',
         'ribetec' => '^MTD',
+    ];
+
+    // ~SD = oscuridad (0-30). La térmica directa sin ribbon suele necesitar
+    // más oscuridad que la de transferencia para que se note algo.
+    private const OSCURIDAD = [
+        'zebra' => 20,
+        'ribetec' => 30,
+    ];
+
+    // ^PR = velocidad de impresión (pulgadas/seg). null = no mandar el
+    // comando, dejar el default de la impresora (así no se toca el
+    // comportamiento ya probado de la Zebra). Sin ribbon que ayude a
+    // transferir, ir más lento le da al cabezal más tiempo de marcar bien.
+    private const VELOCIDAD = [
+        'zebra' => null,
+        'ribetec' => 2,
     ];
 
     /**
@@ -56,6 +72,9 @@ class ZebraLabelPrinter
         $unidad = strtoupper($producto->unit);
 
         $modoImpresion = self::MODO_IMPRESION[$impresora] ?? self::MODO_IMPRESION['zebra'];
+        $oscuridad = self::OSCURIDAD[$impresora] ?? self::OSCURIDAD['zebra'];
+        $velocidad = self::VELOCIDAD[$impresora] ?? null;
+        $comandoVelocidad = $velocidad !== null ? "^PR{$velocidad}\n" : '';
         $zpl = '';
 
         // Etiqueta de texto: descripción, unidad y SKU, sin código de barras.
@@ -63,7 +82,8 @@ class ZebraLabelPrinter
             // Etiqueta de 2 1/4" x 1" @ 203 dpi -> 457 x 203 dots.
             $zpl .= "^XA\n";
             $zpl .= "{$modoImpresion}\n";
-            $zpl .= "~SD20\n";
+            $zpl .= "~SD{$oscuridad}\n";
+            $zpl .= $comandoVelocidad;
             $zpl .= "^PW457\n";
             $zpl .= "^LL203\n";
 
@@ -94,7 +114,8 @@ class ZebraLabelPrinter
             // Etiqueta de 2 1/4" x 1" @ 203 dpi -> 457 x 203 dots.
             $zpl .= "^XA\n";
             $zpl .= "{$modoImpresion}\n";
-            $zpl .= "~SD20\n";
+            $zpl .= "~SD{$oscuridad}\n";
+            $zpl .= $comandoVelocidad;
             $zpl .= "^PW457\n";
             $zpl .= "^LL203\n";
 
