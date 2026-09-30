@@ -71,7 +71,7 @@ class ApiCensoController extends Controller
     // --------------------------------------------------------
     // 3. GUARDAR CENSO Y DOBLE VALIDACIÓN
     // --------------------------------------------------------
-    public function guardar(Request $request)
+    public function guardar(Request $request, BarcodeAssignmentService $barcodeService)
     {
         $request->validate([
             'producto_id' => 'required|exists:products,id',
@@ -193,11 +193,22 @@ class ApiCensoController extends Controller
                 'mueble_numero' => $request->mueble_numero,
                 'entrepano' => $request->entrepano,
                 'marca' => $request->marca,
-                'codigo_barras' => $request->codigo_barras,
             ]);
 
+            // El código de barras ya no se escribe directo: si cambió, pasa por el mismo
+            // servicio que "Asignar Código", que revisa que no sea de otro producto y deja
+            // su renglón en auditoría. Si choca, se deshace todo y el conteo sigue en pantalla.
+            if ($request->codigo_barras !== $producto->codigo_barras) {
+                $resultadoCodigo = $barcodeService->asignar($producto, $request->codigo_barras, $user);
+                if (!$resultadoCodigo['success']) {
+                    DB::rollBack();
+
+                    return response()->json($resultadoCodigo, 422);
+                }
+            }
+
             DB::commit();
-            return response()->json(['success' => true, 'message' => '¡Inventario actualizado!', 'producto' => $producto]);
+            return response()->json(['success' => true, 'message' => '¡Inventario actualizado!', 'producto' => $producto->fresh()]);
 
         } catch (\Exception $e) {
             DB::rollBack();

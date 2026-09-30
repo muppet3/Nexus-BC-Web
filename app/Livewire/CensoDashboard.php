@@ -8,6 +8,7 @@ use App\Models\Product; // <-- Apunta a Product de Nexus
 use App\Models\HallazgoCenso;
 use App\Models\HistorialAuditoria;
 use App\Models\User;
+use App\Services\BarcodeAssignmentService;
 use App\Services\ProductMatcher;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\DB;
@@ -475,15 +476,32 @@ class CensoDashboard extends Component
             ]);
 
             // Guardamos todo en la tabla Product de Nexus
-            $this->productoActivo->update([
+            $datosProducto = [
                 'stock_real' => $nuevoStockTotal,
                 'seccion' => $this->seccionSeleccionada,
                 'mueble_tipo' => $this->muebleTipo,
                 'mueble_numero' => $this->anaquel,
                 'entrepano' => $this->entrepano,
-                'codigo_barras' => $this->codigoBarras !== '' ? $this->codigoBarras : null,
-                'sin_codigo_fisico' => $this->codigoBarras === '',
-            ]);
+            ];
+            // Código vacío = el producto no trae código físico (así funcionaba ya).
+            if ($this->codigoBarras === '') {
+                $datosProducto['codigo_barras'] = null;
+                $datosProducto['sin_codigo_fisico'] = true;
+            }
+            $this->productoActivo->update($datosProducto);
+
+            // Un código nuevo pasa por el mismo servicio que "Asignar Código" (valida
+            // que no sea de otro producto y deja su renglón en auditoría), igual que la app.
+            if ($this->codigoBarras !== '' && $this->codigoBarras !== $this->productoActivo->codigo_barras) {
+                $resultadoCodigo = app(BarcodeAssignmentService::class)->asignar($this->productoActivo, $this->codigoBarras, $user);
+                if (!$resultadoCodigo['success']) {
+                    DB::rollBack();
+                    $this->productoActivo->refresh();
+                    session()->flash('error', $resultadoCodigo['message']);
+
+                    return;
+                }
+            }
 
             DB::commit();
             session()->flash('success', '¡Inventario actualizado con éxito!');
