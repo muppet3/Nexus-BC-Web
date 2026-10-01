@@ -38,11 +38,8 @@ trait BuscaProductosPorPiso
             return;
         }
 
-        // Mismo criterio que usa la app: código de barras exacto, sku/nombre por coincidencia parcial.
-        $this->resultados = Product::where('codigo_barras', $this->search)
-            ->orWhere('sku', 'like', "%{$this->search}%")
-            ->orWhere('name', 'like', "%{$this->search}%")
-            ->orderBy('sku')
+        // Mismo criterio y orden que la app: lo más parecido primero (ver Product::scopeBuscarEnPiso).
+        $this->resultados = Product::buscarEnPiso($this->search)
             ->limit(20)
             ->get(['id', 'sku', 'name', 'codigo_barras', 'sin_codigo_fisico', 'stock_real', 'seccion', 'mueble_tipo', 'mueble_numero', 'entrepano'])
             ->map(fn (Product $p) => [

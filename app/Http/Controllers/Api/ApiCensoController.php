@@ -57,9 +57,10 @@ class ApiCensoController extends Controller
             return response()->json(['success' => true, 'data' => []]);
         }
 
-        $productos = Product::where('codigo_barras', $q)
-            ->orWhere('sku', 'like', "%$q%")
-            ->orWhere('name', 'like', "%$q%")
+        // Lo más parecido primero (ver Product::scopeBuscarEnPiso). El límite evita mandar
+        // miles de productos al celular con búsquedas cortas.
+        $productos = Product::buscarEnPiso($q)
+            ->limit(50)
             ->get();
 
         return response()->json([

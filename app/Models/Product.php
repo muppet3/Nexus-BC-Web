@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
@@ -26,6 +27,32 @@ class Product extends Model
         }
 
         return "{$this->seccion}-{$this->mueble_tipo} {$this->mueble_numero}-{$this->entrepano}";
+    }
+
+    /**
+     * Buscador de piso (app y web): código de barras exacto, o SKU/nombre que contenga
+     * el texto — ordenado por parecido, para que al buscar "X11" salga primero el X11
+     * y no AX11, X110, etc.:
+     *   0. SKU o código de barras exactamente igual
+     *   1. SKU que empieza con el texto
+     *   2. SKU que lo contiene
+     *   3. solo el nombre lo contiene
+     */
+    public function scopeBuscarEnPiso(Builder $query, string $termino): Builder
+    {
+        // % y _ son comodines de LIKE: se escapan para que un SKU como "A_1" se busque tal cual.
+        $like = addcslashes($termino, '%_\\');
+
+        return $query
+            ->where(fn (Builder $q) => $q
+                ->where('codigo_barras', $termino)
+                ->orWhere('sku', 'like', "%{$like}%")
+                ->orWhere('name', 'like', "%{$like}%"))
+            ->orderByRaw(
+                'CASE WHEN sku = ? OR codigo_barras = ? THEN 0 WHEN sku LIKE ? THEN 1 WHEN sku LIKE ? THEN 2 ELSE 3 END',
+                [$termino, $termino, "{$like}%", "%{$like}%"]
+            )
+            ->orderBy('sku');
     }
 
     // Relación original de Nexus (Historial de movimientos viejos)
