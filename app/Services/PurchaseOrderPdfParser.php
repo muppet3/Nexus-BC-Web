@@ -11,6 +11,10 @@ use Smalot\PdfParser\Parser as PdfTextParser;
  * de cabecera quedan concatenadas sin separador (ej. "24/jun./2026ALM67" es
  * Fecha+Folio pegados), por lo que cada patrón de abajo está pensado para ese
  * formato exacto, no para PDFs genéricos.
+ *
+ * Hay dos variantes de renglón según el PDF: 4 columnas separadas por tabulador
+ * (formato 1, ej. ALM67) o un solo tabulador después del SKU y lo demás con
+ * espacios (formato 2, ej. OC 529). Las dos se convierten a lo mismo.
  */
 class PurchaseOrderPdfParser
 {
@@ -32,6 +36,7 @@ class PurchaseOrderPdfParser
         $fechaRaw = null;
         $proveedor = null;
         $items = [];
+        $lineaAnteriorFueArticulo = false;
 
         foreach ($lines as $i => $line) {
             // "24/jun./2026ALM67" -> Fecha="24/jun./2026", Folio="ALM67"
@@ -51,10 +56,28 @@ class PurchaseOrderPdfParser
             }
 
             if (! str_contains($line, "\t")) {
+                // Nombre largo partido en 2 líneas (ej. "...TLMC3B12" + "SELX3T"): la
+                // segunda línea llega sola, sin tabuladores y sin espacios, justo después
+                // del renglón. El corte cae a media palabra, así que se pega sin espacio.
+                if ($lineaAnteriorFueArticulo && preg_match('/^[A-Za-z0-9\-\.\/]+$/', $line)) {
+                    $items[count($items) - 1]['raw_description'] .= $line;
+                }
+                $lineaAnteriorFueArticulo = false;
+
                 continue;
             }
+            $lineaAnteriorFueArticulo = false;
 
             $cols = explode("\t", $line);
+
+            // Formato 2 (ej. OC 529): un solo tabulador después del SKU y lo demás
+            // separado por espacios: "TLMD12105\t416.19PZA 14 5,826.6612.8V 105Ah ...".
+            // Se reacomoda a las mismas 4 columnas del formato 1.
+            if (count($cols) === 2
+                && preg_match('/^([\d,]+\.\d{2}[A-Za-zÀ-ÿ]+)\s+(\d+)\s+([\d,]+\.\d{2}.*)$/u', trim($cols[1]), $f2)) {
+                $cols = [$cols[0], $f2[1], $f2[2], $f2[3]];
+            }
+
             if (count($cols) !== 4) {
                 continue;
             }
@@ -87,6 +110,7 @@ class PurchaseOrderPdfParser
                 'quantity_ordered' => (int) trim($cantidad),
                 'unit_price' => $precio,
             ];
+            $lineaAnteriorFueArticulo = true;
         }
 
         return [
