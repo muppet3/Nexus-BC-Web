@@ -12,11 +12,23 @@ use Illuminate\Support\Str;
  * impriman siempre exactamente igual.
  *
  * A pesar del nombre de la clase, no es exclusivo de Zebra: cada impresora
- * recibe su lenguaje nativo con el mismo diseño de etiqueta —
- *   - Zebra   -> ZPL
+ * recibe su lenguaje nativo, y cada una usa su propio rollo y diseño —
+ *   - Zebra   -> ZPL. Etiqueta de 2 1/4" x 1 1/4" (457 x 254 dots @ 203 dpi):
+ *                UNA sola etiqueta con todo, sin importar el tipo pedido:
+ *
+ *                ┌──────────────────────────────────────────┐
+ *                │ SKU (grande)                  ┌───────┐  │
+ *                │                               │  PZA  │  │
+ *                │ DESCRIPCIÓN (hasta 2 renglones)└───────┘ │
+ *                │ ──────────────────────────────────────── │
+ *                │        ║│║║│║│║║│║ (centrado abajo)         │
+ *                │          7501234567890                   │
+ *                └──────────────────────────────────────────┘
+ *
  *   - Ribetec -> TSPL (placa 4BARCODE 4B-2054A). Su emulación de ZPL imprimía
  *                el texto literal de los comandos en vez de interpretarlos, así
- *                que se le habla directo en TSPL.
+ *                que se le habla directo en TSPL. Sigue con su etiqueta de
+ *                2 1/4" x 1" y sus etiquetas separadas por tipo.
  */
 class ZebraLabelPrinter
 {
@@ -42,14 +54,41 @@ class ZebraLabelPrinter
     // Solo ZPL (Zebra). ^PR = velocidad (pulgadas/seg). null = no mandar el comando.
     private const VELOCIDAD = null;
 
+    // Solo ZPL (Zebra). Medidas de su etiqueta en dots (203 dpi), margen y
+    // recuadro de la unidad (esquina superior derecha).
+    private const ANCHO = 457;
+
+    private const ALTO = 254;
+
+    // Franja horizontal donde va el contenido, ajustada con pruebas impresas. El
+    // contenido es más angosto que el ancho nominal (457) porque la etiqueta real es
+    // más angosta que el rollo: de 14 a 443 la unidad se cortaba a la derecha; de 10
+    // a 420 se cortaba la primera letra a la izquierda y sobraba a la derecha. Queda
+    // del 26 al 436. Ojo: si las guías del rollo quedan flojas la etiqueta se corre
+    // de lado entre impresiones y ningún margen sirve; revisar eso primero.
+    private const MARGEN_IZQ = 26;
+
+    private const ANCHO_CONTENIDO = 410;
+
+    private const UNIDAD_ANCHO = 92;
+
+    private const UNIDAD_ALTO = 40;
+
+    // Solo ZPL (Zebra). ^LT = corrimiento vertical de TODO el contenido, en dots
+    // (+ baja, - sube; 8 dots = 1 mm). Sin él el SKU se salía por arriba; con 30 el
+    // número bajo las barras quedaba sobre la orilla de abajo; 22 quedó bien.
+    // Si después de calibrar la Zebra (botón FEED) se descuadra, regresar a 0.
+    private const AJUSTE_VERTICAL = 22;
+
     // Fuentes internas de TSPL: nombre => ancho de cada carácter en dots (203 dpi).
     // Se usan para centrar el texto a mano y elegir la más grande que quepa
     // (el orden importa: de la más grande a la más chica).
     private const FUENTES_TSPL = ['3' => 16, '2' => 12, '1' => 8];
 
     /**
-     * @param  string  $tipo  'barras' (descripción + código, 2 etiquetas), 'texto'
-     *                        (solo descripción) o 'solo_codigo' (solo código de barras).
+     * @param  string  $tipo  'barras' (descripción + código), 'texto' (solo descripción)
+     *                        o 'solo_codigo'. Solo cambia algo en la Ribetec (etiquetas
+     *                        separadas); en la Zebra los tres imprimen la etiqueta completa.
      * @param  string  $impresora  'zebra' (default) o 'ribetec'.
      */
     public function imprimir(Product $producto, ?string $codigoImpreso, string $tipo = 'barras', int $cantidad = 1, string $impresora = 'zebra'): array
@@ -68,13 +107,14 @@ class ZebraLabelPrinter
             ['N', 'n', '"', '"', "'", "'", '-', '-'],
             strtoupper($producto->name)
         );
-        $descripcion = substr($descripcion, 0, 48);
         $sku = strtoupper($producto->sku);
         $unidad = strtoupper($producto->unit);
 
+        // La Zebra recibe la descripción completa (ella la acomoda en sus 2 renglones);
+        // la Ribetec sigue con sus 48 caracteres de siempre.
         $contenido = self::LENGUAJE[$impresora] === 'tspl'
-            ? $this->generarTspl($tipo, $descripcion, $sku, $unidad, $codigo, $cantidad)
-            : $this->generarZpl($tipo, $descripcion, $sku, $unidad, $codigo, $cantidad);
+            ? $this->generarTspl($tipo, substr($descripcion, 0, 48), $sku, $unidad, $codigo, $cantidad)
+            : $this->generarZpl($descripcion, $sku, $unidad, $codigo, $cantidad);
 
         // Nombre único por trabajo: con time() dos impresiones en el mismo segundo
         // compartían archivo y una pisaba (o borraba) la etiqueta de la otra.
@@ -112,56 +152,68 @@ class ZebraLabelPrinter
     // --------------------------------------------------------
     // ZPL (Zebra)
     // --------------------------------------------------------
-    private function generarZpl(string $tipo, string $descripcion, string $sku, string $unidad, string $codigo, int $cantidad): string
+    private function generarZpl(string $descripcion, string $sku, string $unidad, string $codigo, int $cantidad): string
     {
-        $encabezado = "^XA\n";
-        $encabezado .= self::MODO_IMPRESION !== null ? self::MODO_IMPRESION . "\n" : '';
-        $encabezado .= self::OSCURIDAD !== null ? '~SD' . self::OSCURIDAD . "\n" : '';
-        $encabezado .= self::VELOCIDAD !== null ? '^PR' . self::VELOCIDAD . "\n" : '';
-        // Etiqueta de 2 1/4" x 1" @ 203 dpi -> 457 x 203 dots.
-        $encabezado .= "^PW457\n";
-        $encabezado .= "^LL203\n";
+        $m = self::MARGEN_IZQ;
+        $anchoUtil = self::ANCHO_CONTENIDO;
 
-        $zpl = '';
+        // Acentos que quedaron sin convertir (ej. "galón" -> "GALóN") a ASCII: la Zebra
+        // no entiende UTF-8 y los imprimiría como basura.
+        $aAscii = fn (string $texto) => strtoupper(Str::ascii($texto));
+        $descripcion = $aAscii($descripcion);
+        $unidad = $aAscii($unidad);
 
-        // Etiqueta de texto: descripción, unidad y SKU, sin código de barras.
-        if (in_array($tipo, ['barras', 'texto'], true)) {
-            $zpl .= $encabezado;
-            $zpl .= "^FO20,35^FB420,2,0,L^A0N,26,26^FD{$descripcion}^FS\n";
-            $zpl .= "^FO20,110^A0N,26,26^FDUNIDAD: {$unidad}^FS\n";
-            $zpl .= "^FO20,150^A0N,26,26^FDSKU: {$sku}^FS\n";
-            $zpl .= "^PQ{$cantidad}\n";
-            $zpl .= "^XZ\n";
-        }
+        // Code 128 en modo automático (^BC...,A): la Zebra empaca los dígitos de 2 en 2,
+        // así códigos numéricos largos caben con barras normales. Grosor 2 (barras de
+        // ~0.25 mm, las que mejor lee cualquier lector) si cabe en el ancho; si no, 1.
+        $grosor = $this->anchoCode128($codigo) * 2 <= $anchoUtil ? 2 : 1;
+        // Barras centradas en el ancho del contenido (el número legible sale centrado
+        // debajo de ellas solo). El ancho es estimado: puede variar unos dots si la
+        // Zebra empaca los dígitos distinto.
+        $xBarras = $m + max(0, intdiv($anchoUtil - $this->anchoCode128($codigo) * $grosor, 2));
 
-        // Etiqueta de código de barras.
-        if (in_array($tipo, ['barras', 'solo_codigo'], true)) {
-            // Lógica de ajuste para Code 128 sobre etiqueta de 2 1/4" (457 dots de ancho).
-            // A grosor 2 caben ~15 caracteres antes de desbordar el ancho; los más largos
-            // bajan a grosor 1 (barras más finas) y así entran hasta ~36 caracteres.
-            if (strlen($codigo) <= 15) {
-                $grosor = 2;
-                $posicionX = 40;
-                $fuenteTexto = 30;
-            } else {
-                $grosor = 1;
-                $posicionX = 20;
-                $fuenteTexto = 22;
-            }
+        // Unidad: hasta 6 caracteres en letra normal (PIEZA, METRO); SERVICIO, PAQUETE...
+        // van en letra más chica para que entren completas en el recuadro.
+        $unidad = substr($unidad, 0, 8);
+        $fuenteUnidad = strlen($unidad) <= 6 ? '26,24' : '22,16';
 
-            $zpl .= $encabezado;
-            // Franja superior: el texto arranca en y=32, no pegado al borde.
-            $zpl .= "^FO0,32^FB457,1,0,C^A0N,{$fuenteTexto},{$fuenteTexto}^FDSKU: {$codigo}^FS\n";
-            $zpl .= "^FO{$posicionX},68^BY{$grosor}^BCN,95,Y,N,N^FD{$codigo}^FS\n";
-            $zpl .= "^PQ{$cantidad}\n";
-            $zpl .= "^XZ\n";
-        }
+        // Descripción en 2 renglones de ~34 caracteres (lo que cabe a esta letra). Se
+        // parte aquí porque ^FB encima el texto sobrante en el último renglón.
+        $renglones = array_slice(explode("\n", wordwrap($descripcion, 34, "\n", true)), 0, 2);
+        $descripcion = implode('\&', $renglones);
+
+        $zpl = "^XA\n";
+        $zpl .= self::MODO_IMPRESION !== null ? self::MODO_IMPRESION . "\n" : '';
+        $zpl .= self::OSCURIDAD !== null ? '~SD' . self::OSCURIDAD . "\n" : '';
+        $zpl .= self::VELOCIDAD !== null ? '^PR' . self::VELOCIDAD . "\n" : '';
+        $zpl .= '^PW' . self::ANCHO . "\n";
+        $zpl .= '^LL' . self::ALTO . "\n";
+        $zpl .= '^LT' . self::AJUSTE_VERTICAL . "\n";
+        $zpl .= "^CI0\n";
+
+        // SKU grande + recuadro de unidad.
+        $xUnidad = $m + $anchoUtil - self::UNIDAD_ANCHO;
+        $fuenteSku = strlen($sku) <= 15 ? '38,32' : (strlen($sku) <= 20 ? '30,24' : '24,20');
+
+        $zpl .= "^FO{$m},12^FB" . ($xUnidad - $m - 8) . ",1,0,L^A0N,{$fuenteSku}^FD{$sku}^FS\n";
+        $zpl .= "^FO{$xUnidad},10^GB" . self::UNIDAD_ANCHO . ',' . self::UNIDAD_ALTO . ",3^FS\n";
+        $zpl .= "^FO{$xUnidad},20^FB" . self::UNIDAD_ANCHO . ",1,0,C^A0N,{$fuenteUnidad}^FD{$unidad}^FS\n";
+
+        // Descripción, línea y código de barras centrado abajo.
+        $zpl .= "^FO{$m},58^FB{$anchoUtil},2,2,L^A0N,24,22^FD{$descripcion}^FS\n";
+        $zpl .= "^FO{$m},106^GB{$anchoUtil},2,2^FS\n";
+        // ^BC con texto legible = Y (el número sale centrado debajo de las barras) y
+        // modo A = automático (empaca dígitos).
+        $zpl .= "^FO{$xBarras},116^BY{$grosor}^BCN,100,Y,N,N,A^FD{$codigo}^FS\n";
+
+        $zpl .= "^PQ{$cantidad}\n";
+        $zpl .= "^XZ\n";
 
         return $zpl;
     }
 
     // --------------------------------------------------------
-    // TSPL (Ribetec) — mismo diseño que el ZPL, en coordenadas de dots.
+    // TSPL (Ribetec) — su diseño de siempre: etiqueta de 2 1/4" x 1", separadas por tipo.
     // --------------------------------------------------------
     private function generarTspl(string $tipo, string $descripcion, string $sku, string $unidad, string $codigo, int $cantidad): string
     {
