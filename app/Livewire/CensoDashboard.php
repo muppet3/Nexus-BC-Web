@@ -54,7 +54,7 @@ class CensoDashboard extends Component
     public $supervisorUsername = '';
     public $supervisorPin = '';
 
-    public $secciones = ['Mara', 'Ref ', 'OP1', 'OP2', 'OP3', 'PATIO 1', 'PATIO 2', 'AZOTEA'];
+    public $secciones = Product::SECCIONES;
 
     public function updatingSearch()
     {

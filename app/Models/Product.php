@@ -10,6 +10,11 @@ class Product extends Model
 {
     use HasFactory;
 
+    // Secciones de piso de la bodega — una sola lista para todas las pantallas web
+    // (Inventario, Acomodar Mercancía). Debe coincidir con la de la app
+    // (home_screen.dart y acomodar_mercancia_screen.dart); la primera es la default.
+    public const SECCIONES = ['Mara', 'OP1', 'OP2', 'OP3', 'PATIO 1', 'PATIO 2', 'AZOTEA'];
+
     // Expandimos los campos fillable con la nueva base de datos unificada
     protected $fillable = [
         'sku', 'name', 'unit', 'company', 

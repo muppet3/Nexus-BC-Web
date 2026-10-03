@@ -7,6 +7,7 @@ use App\Models\HistorialAuditoria;
 use App\Models\Product;
 use App\Models\User;
 use App\Services\BarcodeAssignmentService;
+use App\Services\ZebraLabelPrinter;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Livewire\Component;
@@ -27,9 +28,9 @@ class AcomodarMercancia extends Component
 
     public ?Product $productoActivo = null;
 
-    public array $secciones = ['Ref ', 'OP1', 'OP2', 'OP3', 'PATIO 1', 'PATIO 2', 'AZOTEA'];
+    public array $secciones = Product::SECCIONES;
 
-    public string $seccionSeleccionada = 'Ref ';
+    public string $seccionSeleccionada = Product::SECCIONES[0];
 
     public string $muebleTipo = 'A';
 
@@ -38,6 +39,12 @@ class AcomodarMercancia extends Component
     public string $entrepano = '';
 
     public string $codigoBarras = '';
+
+    // Menú de etiquetas (igual que en la app). 'zebra' o 'ribetec' — el valor real
+    // que gana en el navegador es el de localStorage (ver blade).
+    public string $impresora = 'zebra';
+
+    public int $cantidadEtiquetas = 1;
 
     // Autorización (mismo candado que Censo, solo para 'par')
     public bool $showModalAuth = false;
@@ -62,7 +69,7 @@ class AcomodarMercancia extends Component
             $this->anaquel = $producto->mueble_numero;
             $this->entrepano = $producto->entrepano;
         } else {
-            $this->seccionSeleccionada = 'Ref ';
+            $this->seccionSeleccionada = Product::SECCIONES[0];
             $this->muebleTipo = 'A';
             $this->anaquel = '';
             $this->entrepano = '';
@@ -174,6 +181,24 @@ class AcomodarMercancia extends Component
             DB::rollBack();
             session()->flash('error', 'Error: ' . $e->getMessage());
         }
+    }
+
+    /**
+     * Mismo menú que la app: 'barras' (descripción + código), 'texto' (solo
+     * descripción) o 'solo_codigo'. Imprime lo que esté en el campo de código,
+     * igual que la app.
+     */
+    public function imprimirEtiqueta(string $tipo, ZebraLabelPrinter $printer)
+    {
+        if (! $this->productoActivo || ! in_array($tipo, ['barras', 'texto', 'solo_codigo'], true)) {
+            return;
+        }
+
+        $cantidad = max(1, min(20, $this->cantidadEtiquetas));
+        $codigo = trim($this->codigoBarras) ?: null;
+
+        $resultado = $printer->imprimir($this->productoActivo, $codigo, $tipo, $cantidad, $this->impresora);
+        session()->flash($resultado['success'] ? 'success' : 'error', $resultado['message']);
     }
 
     public function render()

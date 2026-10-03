@@ -144,6 +144,50 @@
                         @if ($productoActivo->codigo_barras)
                             <p class="text-xs text-zinc-600 mt-3">Actual: <span class="text-zinc-400">{{ $productoActivo->codigo_barras }}</span></p>
                         @endif
+
+                        {{-- Menú de etiquetas (igual que en la app) --}}
+                        <h3 class="text-xs font-bold text-zinc-500 uppercase tracking-wider mt-8 mb-4">Etiquetas</h3>
+
+                        <div
+                            x-data="{ impresora: localStorage.getItem('impresora_default') || 'zebra' }"
+                            x-init="$wire.set('impresora', impresora)"
+                            class="flex items-center gap-2 mb-4">
+                            <span class="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">Impresora</span>
+                            <button type="button"
+                                @click="impresora = 'zebra'; localStorage.setItem('impresora_default', 'zebra'); $wire.set('impresora', 'zebra')"
+                                :class="impresora === 'zebra' ? 'bg-fuchsia-500/20 border-fuchsia-500 text-white' : 'bg-transparent border-white/20 text-zinc-500'"
+                                class="px-3 py-1.5 rounded-lg text-xs font-bold border transition-colors">
+                                Zebra
+                            </button>
+                            <button type="button"
+                                @click="impresora = 'ribetec'; localStorage.setItem('impresora_default', 'ribetec'); $wire.set('impresora', 'ribetec')"
+                                :class="impresora === 'ribetec' ? 'bg-fuchsia-500/20 border-fuchsia-500 text-white' : 'bg-transparent border-white/20 text-zinc-500'"
+                                class="px-3 py-1.5 rounded-lg text-xs font-bold border transition-colors">
+                                Ribetec
+                            </button>
+
+                            <select wire:model="cantidadEtiquetas"
+                                class="ml-auto bg-[#0a0a0a] border border-zinc-800 rounded-lg text-zinc-200 text-xs py-1.5 focus:ring-emerald-500 focus:border-emerald-500">
+                                @for ($n = 1; $n <= 20; $n++)
+                                    <option value="{{ $n }}">{{ $n }} etiqueta{{ $n > 1 ? 's' : '' }}</option>
+                                @endfor
+                            </select>
+                        </div>
+
+                        <div class="grid grid-cols-1 gap-2">
+                            <button wire:click="imprimirEtiqueta('barras')" wire:loading.attr="disabled" wire:target="imprimirEtiqueta"
+                                class="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold text-blue-300 bg-blue-500/10 border border-blue-500/30 hover:bg-blue-500/20 transition-colors disabled:opacity-50">
+                                🖨️ Imprimir con código de barras
+                            </button>
+                            <button wire:click="imprimirEtiqueta('texto')" wire:loading.attr="disabled" wire:target="imprimirEtiqueta"
+                                class="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold text-cyan-300 bg-cyan-500/10 border border-cyan-500/30 hover:bg-cyan-500/20 transition-colors disabled:opacity-50">
+                                🏷️ Imprimir solo descripción
+                            </button>
+                            <button wire:click="imprimirEtiqueta('solo_codigo')" wire:loading.attr="disabled" wire:target="imprimirEtiqueta"
+                                class="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold text-pink-300 bg-pink-500/10 border border-pink-500/30 hover:bg-pink-500/20 transition-colors disabled:opacity-50">
+                                ▌▌▌ Imprimir solo código de barras
+                            </button>
+                        </div>
                     </div>
                 </div>
 
