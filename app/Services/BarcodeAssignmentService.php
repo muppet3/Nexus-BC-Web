@@ -36,6 +36,22 @@ class BarcodeAssignmentService
             ];
         }
 
+        // Otro producto con el mismo código salvo por espacios ("X  Y" vs "X Y"): casi
+        // seguro es el mismo código capturado distinto. Se detiene para no dejar dos
+        // códigos casi iguales en productos diferentes.
+        $casiIgual = Product::whereRaw("REPLACE(codigo_barras, ' ', '') = ?", [ProductMatcher::sinEspacios($codigo)])
+            ->where('id', '!=', $producto->id)
+            ->first();
+
+        if ($casiIgual) {
+            $guardado = str_replace(' ', '␣', $casiIgual->codigo_barras);
+
+            return [
+                'success' => false,
+                'message' => "Ese código es igual al de {$casiIgual->sku} — {$casiIgual->name} (guardado como \"{$guardado}\"), solo cambian los espacios. Revisa cuál producto es el correcto.",
+            ];
+        }
+
         $anterior = $producto->codigo_barras;
 
         $producto->update([

@@ -3,6 +3,7 @@
 namespace App\Livewire\Concerns;
 
 use App\Models\Product;
+use App\Services\ProductMatcher;
 
 /**
  * Buscador compartido entre las herramientas de piso (Asignar Código de
@@ -50,8 +51,25 @@ trait BuscaProductosPorPiso
                 'sin_codigo_fisico' => $p->sin_codigo_fisico,
                 'stock_real' => $p->stock_real,
                 'ubicacion' => $p->ubicacion_completa,
+                // 'espacios' / 'sufijo' si lo escaneado no es idéntico al código guardado.
+                'aviso' => ProductMatcher::diferenciaConEscaneado($p->codigo_barras, $p->sku, $this->search),
             ])
             ->all();
+    }
+
+    /**
+     * Al elegir un producto de la lista: si lo escaneado no era idéntico a su código
+     * guardado, deja el aviso listo para la pantalla (lo escaneado vs lo guardado).
+     */
+    protected function avisoAlSeleccionar(int $productId): ?array
+    {
+        foreach ($this->resultados as $r) {
+            if ($r['id'] === $productId && $r['aviso'] !== null) {
+                return ['tipo' => $r['aviso'], 'escaneado' => ProductMatcher::codigoEscaneado($this->search), 'guardado' => $r['codigo_barras']];
+            }
+        }
+
+        return null;
     }
 
     public function limpiarBusqueda()

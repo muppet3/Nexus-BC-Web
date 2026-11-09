@@ -41,6 +41,9 @@ class AcomodarMercancia extends Component
 
     public string $codigoBarras = '';
 
+    // Si lo escaneado no era idéntico al código guardado: ['tipo', 'escaneado', 'guardado'].
+    public ?array $avisoEscaneo = null;
+
     // Menú de etiquetas (igual que en la app). 'zebra' o 'ribetec' — el valor real
     // que gana en el navegador es el de localStorage (ver blade).
     public string $impresora = 'zebra';
@@ -62,7 +65,10 @@ class AcomodarMercancia extends Component
         $this->productoActivo = $producto;
         // Mismo criterio que Inventario: si ya tiene código, se queda ese; si no,
         // se precarga con el SKU (muchos productos usan el SKU como código físico).
-        $this->codigoBarras = $producto->codigo_barras ?: $producto->sku;
+        // Excepción: si lo escaneado difiere del código guardado (espacios o letra
+        // Yanmar), se precarga lo escaneado tal cual para que al guardar quede corregido.
+        $this->avisoEscaneo = $this->avisoAlSeleccionar((int) $productId);
+        $this->codigoBarras = $this->avisoEscaneo['escaneado'] ?? ($producto->codigo_barras ?: $producto->sku);
 
         if ($producto->seccion) {
             $this->seccionSeleccionada = $producto->seccion;
@@ -88,6 +94,7 @@ class AcomodarMercancia extends Component
         $this->anaquel = '';
         $this->entrepano = '';
         $this->codigoBarras = '';
+        $this->avisoEscaneo = null;
         $this->resetErrorBag();
     }
 

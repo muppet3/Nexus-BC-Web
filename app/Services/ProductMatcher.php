@@ -44,6 +44,45 @@ class ProductMatcher
         return trim($codigo) === '' ? null : $codigo;
     }
 
+    /** Código sin ningún espacio, para comparar "igual salvo por espacios". */
+    public static function sinEspacios(?string $codigo): string
+    {
+        return preg_replace('/\s+/u', '', (string) $codigo);
+    }
+
+    /**
+     * Etiquetas Yanmar: después de la clave traen espacios + 1 carácter de control
+     * ("119195-18880  Y"). Devuelve la clave sin ese sufijo, o null si no lo trae.
+     */
+    public static function claveSinSufijoYanmar(?string $codigo): ?string
+    {
+        return preg_match('/^(.+?)\s+\S$/u', trim((string) $codigo), $m) ? $m[1] : null;
+    }
+
+    /**
+     * Compara lo ESCANEADO contra el código guardado del producto. Devuelve null si
+     * son idénticos (o si no tienen relación), o el tipo de diferencia:
+     *   - 'espacios': mismo código, solo cambian los espacios.
+     *   - 'sufijo':   la etiqueta trae la letra de control Yanmar que el código guardado no tiene.
+     * Se compara en PHP y no en MySQL porque MySQL ignora los espacios al final.
+     */
+    public static function diferenciaConEscaneado(?string $codigoGuardado, string $sku, ?string $escaneado): ?string
+    {
+        $escaneado = self::codigoEscaneado($escaneado);
+        if ($escaneado === null || $codigoGuardado === $escaneado) {
+            return null;
+        }
+        if ($codigoGuardado !== null && self::sinEspacios($codigoGuardado) === self::sinEspacios($escaneado)) {
+            return 'espacios';
+        }
+        $base = self::claveSinSufijoYanmar($escaneado);
+        if ($base !== null && in_array(self::sinEspacios($base), [self::sinEspacios($codigoGuardado), self::sinEspacios($sku)], true)) {
+            return 'sufijo';
+        }
+
+        return null;
+    }
+
     public static function findExisting(?string $sku, ?string $codigoBarras = null): ?Product
     {
         $sku = self::normalizeCode($sku);

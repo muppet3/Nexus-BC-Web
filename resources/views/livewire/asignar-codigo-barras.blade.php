@@ -64,7 +64,9 @@
                                         &middot; Existencia: <span class="font-semibold text-zinc-300">{{ $p['stock_real'] }}</span>
                                     </div>
                                 </div>
-                                @if (empty($p['codigo_barras']))
+                                @if ($p['aviso'] ?? null)
+                                    <span class="shrink-0 text-[10px] font-bold px-2 py-1 rounded bg-amber-500/10 text-amber-300 border border-amber-500/40">⚠ {{ $p['aviso'] === 'sufijo' ? 'FALTA LETRA YANMAR' : 'DIFIERE POR ESPACIOS' }}</span>
+                                @elseif (empty($p['codigo_barras']))
                                     <span class="shrink-0 text-[10px] font-bold px-2 py-1 rounded bg-orange-500/10 text-orange-400 border border-orange-500/30">SIN CÓDIGO</span>
                                 @else
                                     <span class="shrink-0 text-[10px] font-bold px-2 py-1 rounded bg-zinc-800 text-zinc-400">YA TIENE: {{ $p['codigo_barras'] }}</span>
@@ -124,6 +126,10 @@
                         🏷️ Imprimir Descripción
                     </button>
                 </div>
+
+                @if ($avisoEscaneo)
+                    @include('livewire.partials.aviso-escaneo', ['aviso' => $avisoEscaneo])
+                @endif
 
                 <label class="block text-xs font-bold text-zinc-500 uppercase tracking-wider mb-2">Nuevo Código de Barras</label>
                 <div class="relative">

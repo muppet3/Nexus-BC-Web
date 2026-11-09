@@ -26,6 +26,9 @@ class AsignarCodigoBarras extends Component
 
     public string $codigoNuevo = '';
 
+    // Si lo escaneado no era idéntico al código guardado: ['tipo', 'escaneado', 'guardado'].
+    public ?array $avisoEscaneo = null;
+
     // 'zebra' o 'ribetec' — el valor real que gana en el navegador es el de
     // localStorage (ver blade), esto solo es el default antes de que Alpine lo pise.
     public string $impresora = 'zebra';
@@ -39,7 +42,10 @@ class AsignarCodigoBarras extends Component
     public function seleccionar($productId)
     {
         $this->productoActivo = Product::find($productId);
-        $this->codigoNuevo = '';
+        // Si lo escaneado difiere del código guardado (espacios o letra Yanmar), el campo
+        // ya trae lo escaneado tal cual: con "Guardar" queda corregido.
+        $this->avisoEscaneo = $this->avisoAlSeleccionar((int) $productId);
+        $this->codigoNuevo = $this->avisoEscaneo['escaneado'] ?? '';
         $this->resultados = [];
         // Avisa al navegador que ya se ve el campo de código nuevo, para que Alpine le
         // ponga el foco (ver mismo mecanismo en guardarCodigo()).
@@ -50,6 +56,7 @@ class AsignarCodigoBarras extends Component
     {
         $this->productoActivo = null;
         $this->codigoNuevo = '';
+        $this->avisoEscaneo = null;
         $this->search = '';
     }
 
