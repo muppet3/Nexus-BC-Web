@@ -18,7 +18,8 @@ class BarcodeAssignmentService
      */
     public function asignar(Product $producto, string $codigoCrudo, User $usuario): array
     {
-        $codigo = ProductMatcher::normalizeCode($codigoCrudo);
+        // Tal cual se escaneó (ver ProductMatcher::codigoEscaneado).
+        $codigo = ProductMatcher::codigoEscaneado($codigoCrudo);
 
         if ($codigo === null) {
             return ['success' => false, 'message' => 'El código no puede estar vacío.'];

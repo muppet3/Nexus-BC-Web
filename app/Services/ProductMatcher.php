@@ -28,6 +28,22 @@ class ProductMatcher
         return $clean === '' ? null : $clean;
     }
 
+    // Código de barras ESCANEADO: se guarda tal cual lo leyó el lector — con sus
+    // espacios (también al inicio/final), guiones, mayúsculas/minúsculas y prefijos
+    // como "]C1". Solo se quitan Enter/Tab, que el lector manda al terminar de leer y
+    // nunca son parte del código. Si no queda nada más que espacios, cuenta como vacío.
+    // (normalizeCode sigue igual para SKUs de PDFs, Excel y altas a mano.)
+    public static function codigoEscaneado(?string $raw): ?string
+    {
+        if ($raw === null) {
+            return null;
+        }
+
+        $codigo = str_replace(["\r", "\n", "\t"], '', (string) $raw);
+
+        return trim($codigo) === '' ? null : $codigo;
+    }
+
     public static function findExisting(?string $sku, ?string $codigoBarras = null): ?Product
     {
         $sku = self::normalizeCode($sku);

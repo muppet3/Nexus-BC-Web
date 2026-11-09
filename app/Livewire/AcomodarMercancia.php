@@ -7,6 +7,7 @@ use App\Models\HistorialAuditoria;
 use App\Models\Product;
 use App\Models\User;
 use App\Services\BarcodeAssignmentService;
+use App\Services\ProductMatcher;
 use App\Services\ZebraLabelPrinter;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -160,8 +161,9 @@ class AcomodarMercancia extends Component
                 'detalle_nuevo' => "Ubi: {$nuevaUbicacion}",
             ]);
 
-            $codigoNuevo = trim($this->codigoBarras);
-            if ($codigoNuevo !== '' && $codigoNuevo !== $this->productoActivo->codigo_barras) {
+            // Tal cual se escaneó: sin recortar espacios (ver ProductMatcher::codigoEscaneado).
+            $codigoNuevo = ProductMatcher::codigoEscaneado($this->codigoBarras);
+            if ($codigoNuevo !== null && $codigoNuevo !== $this->productoActivo->codigo_barras) {
                 $resultadoCodigo = app(BarcodeAssignmentService::class)->asignar($this->productoActivo, $codigoNuevo, $user);
                 if (! $resultadoCodigo['success']) {
                     DB::rollBack();
@@ -195,7 +197,7 @@ class AcomodarMercancia extends Component
         }
 
         $cantidad = max(1, min(20, $this->cantidadEtiquetas));
-        $codigo = trim($this->codigoBarras) ?: null;
+        $codigo = ProductMatcher::codigoEscaneado($this->codigoBarras);
 
         $resultado = $printer->imprimir($this->productoActivo, $codigo, $tipo, $cantidad, $this->impresora);
         session()->flash($resultado['success'] ? 'success' : 'error', $resultado['message']);
